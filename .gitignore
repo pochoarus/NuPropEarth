@@ -1,0 +1,12 @@
+#ignore all logs and libraries
+**.o
+**.so
+**.cc
+**.pcm
+**.config
+**.root
+
+#ignore all lib and bin dir
+lib/
+bin/
+

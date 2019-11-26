@@ -33,7 +33,7 @@ cd NuPropEarth
 source setup.sh
 ```
 
-5. Install this version of [GENIE3 (w/ HEDIS)](https://https://github.com/pochoarus/GENIE-HEDIS/tree/apfel)
+5. Install this version of [GENIE3 (w/ HEDIS)](https://github.com/pochoarus/GENIE-HEDIS/tree/apfel)
 
 ```
 git clone https://github.com/pochoarus/GENIE-HEDIS.git $GENIE

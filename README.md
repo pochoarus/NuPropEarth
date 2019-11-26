@@ -1,4 +1,4 @@
-# PropEarth
+# NuPropEarth
 Module to simulation the propagation of neutrinos through the Earth.
 
 These are the main dependencies:

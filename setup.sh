@@ -2,45 +2,44 @@
 # setup root
 #----------------------------------------------------------
 
-export ROOTSYS=/usr/local/root/6.10.02/
+export ROOTSYS=/path/to/your/favourite/ROOT6
 source $ROOTSYS/bin/thisroot.sh
 
 #----------------------------------------------------------
-# setup everything needed to run/compile PropEarth
-# (it's a lot)
+# setup genie3 (w/ hedis)
 #----------------------------------------------------------
 
 #genie                                                                                                                                                                        
-export GENIE=/sps/km3net/users/agarcia/software/GENIE-HEDIS-dev/GENIE-HEDIS
+export GENIE=/path/to/directory/were/you/want/to/install/GENIE
 export PATH=$GENIE/bin:$PATH
 export LD_LIBRARY_PATH=$GENIE/lib:$LD_LIBRARY_PATH
 
-#log4cpp (used by genie)                                                                                                               
-export LOG4CPPLIB=$KM3NET_THRONG_DIR/src/gSeaGen/log4cpp/lib
-export LD_LIBRARY_PATH=$LOG4CPPLIB:$LD_LIBRARY_PATH
-
 #pythia
-export PYTHIA6=/pbs/software/centos-7-x86_64/pythia/6.4.28
+export PYTHIA6=/path/to/directory/were/PYTHIA6/is/installed
 export LD_LIBRARY_PATH=$PYTHIA6:$LD_LIBRARY_PATH
 
 #lhapdf                                                                                                               
-export LHAPDF=/usr/local/lhapdf/6.1.6
+export LHAPDF=/path/to/directory/were/LHAPDF6/is/installed
 export LHAPATH=${GENIE}/data/evgen/pdfs
 export PATH=$LHAPDF/bin:$PATH
 export LD_LIBRARY_PATH=$LHAPDF/lib:$LD_LIBRARY_PATH
 
 #apfel
-export APFEL=/sps/km3net/users/agarcia/software/apfel
+export APFEL=/path/to/directory/were/apfel/is/installed
 export LD_LIBRARY_PATH=$APFEL/install/lib:$LD_LIBRARY_PATH
 
+#----------------------------------------------------------
+# setup nupropearth
+#----------------------------------------------------------
+
 #TAUOLA
-export TAUOLA=/sps/km3net/users/agarcia/software/TAUOLA
+export TAUOLA=/path/to/directory/were/tauola/is/installed
 export LD_LIBRARY_PATH=$TAUOLA/lib:$LD_LIBRARY_PATH
 
 #cern
-export CERN=/afs/in2p3.fr/cernlib/amd64_sl7/2006b_oldAFS/x86_64-slc5-gcc43-opt
+export CERN=/path/to/directory/were/cernlib/is/installed
 
 #nuearthprop
-export NUPROPEARTH=/sps/km3net/users/agarcia/software/NuPropEarth
+export NUPROPEARTH=${PWD}
 export PATH=$NUPROPEARTH/bin:$PATH
 export LD_LIBRARY_PATH=$NUPROPEARTH/lib:$LD_LIBRARY_PATH

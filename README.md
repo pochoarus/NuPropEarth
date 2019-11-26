@@ -25,7 +25,7 @@ git clone https://github.com/pochoarus/NuPropEarth.git
 cd NuPropEarth
 ```
 
-3. Define the envioroment in which you will work in source.sh (for instance GENIE,NUEARTHPROP,etc.)
+3. Define the envioroment in which you will work in source.sh (for instance GENIE,PYHTIA6,LHAPDF6,etc.)
 
 4. Source the enviroment
 

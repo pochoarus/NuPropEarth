@@ -60,7 +60,7 @@ using namespace genie;
 using namespace genie::flux;
 using namespace genie::geometry;
 
-double d_lifetime = Tauola::tau_lifetime * 1e-3; //lifetime from mm(tauola) to m(gseagen)
+double d_lifetime = Tauola::tau_lifetime * 1e-3; //lifetime from mm(tauola) to m
 double cSpeed = constants::kLightSpeed/(units::meter/units::second);
 
 //functions
@@ -95,12 +95,12 @@ int main(int argc, char** argv)
 {
 
   // Parse command line arguments
-  LOG("NuPropEarth", pDEBUG) << "Reading options...";
+  LOG("ComputeAttenuation", pDEBUG) << "Reading options...";
   GetCommandLineArgs(argc,argv);
 
   string geofilename = "geometry-Earth.root";
   if ( gSystem->AccessPathName(geofilename.c_str()) ) {
-    LOG("NuPropEarth", pDEBUG) << "Building Geometry...";
+    LOG("ComputeAttenuation", pDEBUG) << "Building Geometry...";
     BuildEarth(geofilename); 
   }
   geometry::ROOTGeomAnalyzer * rgeom = new geometry::ROOTGeomAnalyzer(geofilename);
@@ -110,14 +110,14 @@ int main(int argc, char** argv)
 
   TGeoVolume * topvol = rgeom->GetGeometry()->GetTopVolume();
    if(!topvol) {
-    LOG("NuPropEarth", pFATAL) << " ** Null top ROOT geometry volume!";
+    LOG("ComputeAttenuation", pFATAL) << " ** Null top ROOT geometry volume!";
     exit(1);
   }
-  LOG("NuPropEarth", pNOTICE) << topvol->GetName();
+  LOG("ComputeAttenuation", pNOTICE) << topvol->GetName();
 
   GeomAnalyzerI * geom_driver = dynamic_cast<GeomAnalyzerI *> (rgeom);
 
-  LOG("NuPropEarth", pDEBUG) << "Creating GFluxI...";
+  LOG("ComputeAttenuation", pDEBUG) << "Creating GFluxI...";
   IncomingFlux * flx_driver = new IncomingFlux(gOptPdg, gOptAlpha, Cthmin, Cthmax, gOptCThv, Emin, Emax, gOptEv);
 
   RunOpt::Instance()->BuildTune();
@@ -130,20 +130,20 @@ int main(int argc, char** argv)
   // Set GHEP print level
   GHepRecord::SetPrintLevel(RunOpt::Instance()->EventRecordPrintLevel());
 
-  LOG("NuPropEarth", pDEBUG) << "Creating GTRJDriver...";
+  LOG("ComputeAttenuation", pDEBUG) << "Creating GTRJDriver...";
   GTRJDriver * trj_driver = new GTRJDriver;
   trj_driver->SetEventGeneratorList(RunOpt::Instance()->EventGeneratorList());
   trj_driver->UseFluxDriver(dynamic_cast<GFluxI *>(flx_driver));
   trj_driver->UseGeomAnalyzer(geom_driver);
 
-  LOG("NuPropEarth", pDEBUG) << "Configuring GTRJDriver...";
+  LOG("ComputeAttenuation", pDEBUG) << "Configuring GTRJDriver...";
   trj_driver->Configure();
 
-  LOG("NuPropEarth", pDEBUG) << "Initializing TAUOLA...";
+  LOG("ComputeAttenuation", pDEBUG) << "Initializing TAUOLA...";
   Tauola::initialize();
   double mtau = Tauola::getTauMass(); //use this mass to avoid energy conservation warning in tauola
 
-  LOG("NuPropEarth", pDEBUG) << "Initializing TAUSIC...";
+  LOG("ComputeAttenuation", pDEBUG) << "Initializing TAUSIC...";
   string cp_command("cp ./tausic/2004/tausic*.dat .");
   system(cp_command.c_str());
 
@@ -154,13 +154,13 @@ int main(int argc, char** argv)
   int ITFLAG = 0; //set lifetime inside tausic
   double RHOR = 2.65; //rock density
 
-  LOG("NuPropEarth", pDEBUG) << "Initializing Random...";
+  LOG("ComputeAttenuation", pDEBUG) << "Initializing Random...";
   RandomGen * rnd = RandomGen::Instance();
 
-  LOG("NuPropEarth", pINFO) << "Creating output name";
-  string OutEvFile = "gSeaPropa_" + RunOpt::Instance()->Tune()->Name() + Form("_nu%d_cth%g.root",gOptPdg,gOptCThv);
+  LOG("ComputeAttenuation", pINFO) << "Creating output name";
+  string OutEvFile = "NuEarthProp_" + RunOpt::Instance()->Tune()->Name() + Form("_nu%d_cth%g.root",gOptPdg,gOptCThv);
 
-  LOG("NuPropEarth", pNOTICE) << "@@ Output file name: " << OutEvFile;
+  LOG("ComputeAttenuation", pNOTICE) << "@@ Output file name: " << OutEvFile;
 
   // create file so tree is saved inside
   TFile * outfile = new TFile(OutEvFile.c_str(),"RECREATE");
@@ -197,7 +197,7 @@ int main(int argc, char** argv)
   outtree->Branch("X4",        Nu_X4,    "X4[NInt][4]/D" );       
   outtree->Branch("P4",        Nu_P4,    "P4[NInt][4]/D" );
 
-  LOG("NuPropEarth", pDEBUG) << "Event loop...";
+  LOG("ComputeAttenuation", pDEBUG) << "Event loop...";
 
   int NNu = 0;
   NIntCC = 0;
@@ -208,16 +208,16 @@ int main(int argc, char** argv)
     EventRecord * event = trj_driver->GenerateEvent();
 
     if (NInt==0) {
-      if ( NNu%100==0 ) LOG("NuPropEarth", pINFO) << "Event " << NNu << " out of " << gOptNev;
+      if ( NNu%100==0 ) LOG("ComputeAttenuation", pINFO) << "Event " << NNu << " out of " << gOptNev;
       Nu_In    = flx_driver->GetPdgI();
       X4_In[0] = flx_driver->GetX4I().X();  X4_In[1] = flx_driver->GetX4I().Y();  X4_In[2] = flx_driver->GetX4I().Z();  X4_In[3] = flx_driver->GetX4I().T();
       P4_In[0] = flx_driver->GetP4I().Px(); P4_In[1] = flx_driver->GetP4I().Py(); P4_In[2] = flx_driver->GetP4I().Pz(); P4_In[3] = flx_driver->GetP4I().E();
     }
 
-    LOG("NuPropEarth", pDEBUG) << "Shooting Neutrino: " << NNu << "( " << NInt << " ) ----->" ;
-    LOG("NuPropEarth", pDEBUG) << "@@Flux = " << flx_driver->GetPdgI() << " , E =" << flx_driver->GetP4I().E();
-    LOG("NuPropEarth", pDEBUG) << "Postion   = [ " << flx_driver->GetX4I().X() << " , " << flx_driver->GetX4I().Y() << " , " << flx_driver->GetX4I().Z() << " , " << flx_driver->GetX4I().T() << " ] ";
-    LOG("NuPropEarth", pDEBUG) << "Direction = [ " << flx_driver->GetP4I().Px()/flx_driver->GetP4I().E() << " , " << flx_driver->GetP4I().Py()/flx_driver->GetP4I().E() << " , " << flx_driver->GetP4I().Pz()/flx_driver->GetP4I().E() << " ]";
+    LOG("ComputeAttenuation", pDEBUG) << "Shooting Neutrino: " << NNu << "( " << NInt << " ) ----->" ;
+    LOG("ComputeAttenuation", pDEBUG) << "@@Flux = " << flx_driver->GetPdgI() << " , E =" << flx_driver->GetP4I().E();
+    LOG("ComputeAttenuation", pDEBUG) << "Postion   = [ " << flx_driver->GetX4I().X() << " , " << flx_driver->GetX4I().Y() << " , " << flx_driver->GetX4I().Z() << " , " << flx_driver->GetX4I().T() << " ] ";
+    LOG("ComputeAttenuation", pDEBUG) << "Direction = [ " << flx_driver->GetP4I().Px()/flx_driver->GetP4I().E() << " , " << flx_driver->GetP4I().Py()/flx_driver->GetP4I().E() << " , " << flx_driver->GetP4I().Pz()/flx_driver->GetP4I().E() << " ]";
 
     if (event) {
 
@@ -229,13 +229,13 @@ int main(int argc, char** argv)
       const TLorentzVector & P4  = *event->Probe()->P4();
 
       // print-out
-      LOG("NuPropEarth", pDEBUG) << "Neutrino interaction!!!";
-      LOG("NuPropEarth", pDEBUG) << "@@Interact   = "   << sctid << "   " << intid;
-      LOG("NuPropEarth", pDEBUG) << "@@Probe      = "   << nupdg << " , E =" << P4.E();
-      LOG("NuPropEarth", pDEBUG) << "  Position   = [ " << X4.X() << " , " << X4.Y() << " , " << X4.Z() << " , " << X4.T() << " ]";
-      LOG("NuPropEarth", pDEBUG) << "  Direction  = [ " << P4.Px()/P4.E() << " , " << P4.Py()/P4.E() << " , " << P4.Pz()/P4.E() << " ]";
-      LOG("NuPropEarth", pDEBUG) << "@@Target     = "   << tgt;
-      LOG("NuPropEarth", pDEBUG) << *event;
+      LOG("ComputeAttenuation", pDEBUG) << "Neutrino interaction!!!";
+      LOG("ComputeAttenuation", pDEBUG) << "@@Interact   = "   << sctid << "   " << intid;
+      LOG("ComputeAttenuation", pDEBUG) << "@@Probe      = "   << nupdg << " , E =" << P4.E();
+      LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << X4.X() << " , " << X4.Y() << " , " << X4.Z() << " , " << X4.T() << " ]";
+      LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << P4.Px()/P4.E() << " , " << P4.Py()/P4.E() << " , " << P4.Pz()/P4.E() << " ]";
+      LOG("ComputeAttenuation", pDEBUG) << "@@Target     = "   << tgt;
+      LOG("ComputeAttenuation", pDEBUG) << *event;
 
       SctID[NInt]     = sctid;
       IntID[NInt]     = intid;
@@ -283,7 +283,7 @@ int main(int argc, char** argv)
               depthi += length*rho;
             }
             depthi = depthi/RHOR;
-            LOG("NuPropEarth", pDEBUG) << "PathLength = " << depthi << " cm r.e." ;
+            LOG("ComputeAttenuation", pDEBUG) << "PathLength = " << depthi << " cm r.e." ;
 
             double vxf,vyf,vzf,tf;
             double dxf,dyf,dzf,Ef;
@@ -292,13 +292,13 @@ int main(int argc, char** argv)
             int idec; //decay flag (0=not decay // >0=decay)
             double tauti,tautf; //dummy only used when ITFLAG!=0
 
-            LOG("NuPropEarth", pDEBUG) << "Before -> X4 = " << vxi << "  " << vyi << "  " << vzi << "  " << ti;
-            LOG("NuPropEarth", pDEBUG) << "Before -> P4 = " << dxi << "  " << dyi << "  " << dzi << "  " << Ei;
+            LOG("ComputeAttenuation", pDEBUG) << "Before -> X4 = " << vxi << "  " << vyi << "  " << vzi << "  " << ti;
+            LOG("ComputeAttenuation", pDEBUG) << "Before -> P4 = " << dxi << "  " << dyi << "  " << dzi << "  " << Ei;
 
             tau_transport_sr_(&vxi,&vyi,&vzi,&dxi,&dyi,&dzi,&Ei,&depthi,&ti,&RHOR,&TAUMODEL,&TAUMODEL,&vxf,&vyf,&vzf,&dxf,&dyf,&dzf,&Ef,&depthf,&tf,&idec,&ITFLAG,&tauti,&tautf);
 
-            LOG("NuPropEarth", pDEBUG) << "After -> X4 = " << vxf/100. << "  " << vyf/100. << "  " << vzf/100. << "  " << tf/1e9;
-            LOG("NuPropEarth", pDEBUG) << "After -> P4 = " << dxf << "  " << dyf << "  " << dzf << "  " << Ef;
+            LOG("ComputeAttenuation", pDEBUG) << "After -> X4 = " << vxf/100. << "  " << vyf/100. << "  " << vzf/100. << "  " << tf/1e9;
+            LOG("ComputeAttenuation", pDEBUG) << "After -> P4 = " << dxf << "  " << dyf << "  " << dzf << "  " << Ef;
 
             if (idec>0) {
               double momf = TMath::Sqrt( Ef*Ef - mtau*mtau );
@@ -310,23 +310,23 @@ int main(int argc, char** argv)
               SecNu_Pdg    = Tauola_evt->getParticle(1)->getPdgID();
               SecNu_Mom[0] = Tauola_evt->getParticle(1)->getPx(); SecNu_Mom[1] = Tauola_evt->getParticle(1)->getPy(); SecNu_Mom[2] = Tauola_evt->getParticle(1)->getPz(); 
               SecNu_E      = Tauola_evt->getParticle(1)->getE();
-              SecNu_Pos[0] = vxf/100.; //from cm (tausic) to m (gseagen)
+              SecNu_Pos[0] = vxf/100.; //from cm (tausic) to m
               SecNu_Pos[1] = vyf/100.;
               SecNu_Pos[2] = vzf/100.;
-              SecNu_Pos[3] = tf/1e9; //from ns (tausic) to s (gseagen)
+              SecNu_Pos[3] = tf/1e9; //from ns (tausic) to s
               std::cout << SecNu_E/Ef << std::endl;
               delete Tauola_evt;
               break;
             }
             else {
-              LOG("NuPropEarth", pWARN) << "Tau did not decay!!!";
-              LOG("NuPropEarth", pWARN) << "  Eneryi      = " << Ei;
-              LOG("NuPropEarth", pWARN) << "  Positioni   = [ " << X4.X() << " , " << X4.Y() << " , " << X4.Z() << " , " << X4.T() << " ]";
-              LOG("NuPropEarth", pWARN) << "  Directioni  = [ " << dxi << " , " << dyi << " , " << dzi << " ]";
-              LOG("NuPropEarth", pWARN) << "  PathLength = " << depthi << " cm r.e." ;
-              LOG("NuPropEarth", pWARN) << "  Eneryf      = " << Ef;
-              LOG("NuPropEarth", pWARN) << "  Positionf   = [ " << vxf/100. << " , " << vyf/100. << " , " << vzf/100. << " , " << tf/1e9 << " ]";
-              LOG("NuPropEarth", pWARN) << "  Directionf  = [ " << dxf << " , " << dyf << " , " << dzf << " ]";
+              LOG("ComputeAttenuation", pWARN) << "Tau did not decay!!!";
+              LOG("ComputeAttenuation", pWARN) << "  Eneryi      = " << Ei;
+              LOG("ComputeAttenuation", pWARN) << "  Positioni   = [ " << X4.X() << " , " << X4.Y() << " , " << X4.Z() << " , " << X4.T() << " ]";
+              LOG("ComputeAttenuation", pWARN) << "  Directioni  = [ " << dxi << " , " << dyi << " , " << dzi << " ]";
+              LOG("ComputeAttenuation", pWARN) << "  PathLength = " << depthi << " cm r.e." ;
+              LOG("ComputeAttenuation", pWARN) << "  Eneryf      = " << Ef;
+              LOG("ComputeAttenuation", pWARN) << "  Positionf   = [ " << vxf/100. << " , " << vyf/100. << " , " << vzf/100. << " , " << tf/1e9 << " ]";
+              LOG("ComputeAttenuation", pWARN) << "  Directionf  = [ " << dxf << " , " << dyf << " , " << dzf << " ]";
             }
 
           }
@@ -344,7 +344,7 @@ int main(int argc, char** argv)
             SecNu_E      = Tauola_evt->getParticle(1)->getE();
             // position based on lifetime
             double d_r = (gOptEnableDecayLength) ? -TMath::Log( rnd->RndGen().Rndm() ) * d_lifetime : 0; //m
-            SecNu_Pos[0] = p->Vx()*1e-15 + p->Px()*d_r/mtau; // initial position of tau wrt vertex changing from fm(genie) to m(gseagen)
+            SecNu_Pos[0] = p->Vx()*1e-15 + p->Px()*d_r/mtau; // initial position of tau wrt vertex changing from fm(genie) to m
             SecNu_Pos[1] = p->Vy()*1e-15 + p->Py()*d_r/mtau;
             SecNu_Pos[2] = p->Vz()*1e-15 + p->Pz()*d_r/mtau;
             SecNu_Pos[3] = p->Vt()       + Etau   *d_r/mtau/cSpeed;
@@ -368,7 +368,7 @@ int main(int argc, char** argv)
           SecNu_Pdg    = p->Pdg();
           SecNu_Mom[0] = p->Px(); SecNu_Mom[1] = p->Py(); SecNu_Mom[2] = p->Pz(); 
           SecNu_E      = TMath::Sqrt(p->Px()*p->Px()+p->Py()*p->Py()+p->Pz()*p->Pz()); //not using E to avoid problems with neutrinos from pythia not on shell
-          //position -> passing from fm [genie] to m [gSeagen]
+          //position -> passing from fm [genie] to m
           SecNu_Pos[0] = p->Vx()*1e-15; SecNu_Pos[1] = p->Vy()*1e-15; SecNu_Pos[2] = p->Vz()*1e-15; SecNu_Pos[3] = p->Vt(); 
           break;
         }
@@ -376,21 +376,21 @@ int main(int argc, char** argv)
       delete event;
 
       if ( SecNu_Pdg!=0 && SecNu_E>Emin ) {
-        LOG("NuPropEarth", pDEBUG) << "@@SecNu      = "   << SecNu_Pdg << " , E = " << SecNu_E;
-        LOG("NuPropEarth", pDEBUG) << "  Position   = [ " << SecNu_Pos[0] << " , " << SecNu_Pos[1] << " , " << SecNu_Pos[2] << " , " << SecNu_Pos[3] << " ]";
-        LOG("NuPropEarth", pDEBUG) << "  Direction  = [ " << SecNu_Mom[0]/SecNu_E << " , " << SecNu_Mom[1]/SecNu_E << " , " << SecNu_Mom[2]/SecNu_E << " ]";
+        LOG("ComputeAttenuation", pDEBUG) << "@@SecNu      = "   << SecNu_Pdg << " , E = " << SecNu_E;
+        LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << SecNu_Pos[0] << " , " << SecNu_Pos[1] << " , " << SecNu_Pos[2] << " , " << SecNu_Pos[3] << " ]";
+        LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << SecNu_Mom[0]/SecNu_E << " , " << SecNu_Mom[1]/SecNu_E << " , " << SecNu_Mom[2]/SecNu_E << " ]";
         flx_driver->InitNeutrino(SecNu_Mom[0],SecNu_Mom[1],SecNu_Mom[2],SecNu_E,SecNu_Pos[0],SecNu_Pos[1],SecNu_Pos[2],SecNu_Pos[3],SecNu_Pdg,X4);
         continue;
       } 
 
-      LOG("NuPropEarth", pDEBUG) << " ----> Absorbed by the Earth";
+      LOG("ComputeAttenuation", pDEBUG) << " ----> Absorbed by the Earth";
       Nu_Out    = 0;
       P4_Out[0] = 0; P4_Out[1] = 0; P4_Out[2] = 0; P4_Out[3] = 0;
       X4_Out[0] = 0; X4_Out[1] = 0; X4_Out[2] = 0; X4_Out[3] = 0;
 
     }
     else {
-      LOG("NuPropEarth", pDEBUG) << " ----> Goodbye Earth!!!";
+      LOG("ComputeAttenuation", pDEBUG) << " ----> Goodbye Earth!!!";
       P4_Out[0] = flx_driver->GetP4I().Px(); P4_Out[1] = flx_driver->GetP4I().Py(); P4_Out[2] = flx_driver->GetP4I().Pz(); P4_Out[3] = flx_driver->GetP4I().E();
       X4_Out[0] = flx_driver->GetX4I().X(); X4_Out[1] = flx_driver->GetX4I().Y(); X4_Out[2] = flx_driver->GetX4I().Z(); X4_Out[3] = flx_driver->GetX4I().T();
       Nu_Out = (P4_Out[3]==P4_In[3] && X4_Out[2]==X4_In[2]) ? 1 : flx_driver->GetPdgI();     
@@ -426,7 +426,7 @@ int main(int argc, char** argv)
 //**************************************************************************
 void BuildEarth(string geofilename){
 
-  LOG("NuPropEarth", pINFO) <<"fREarth = "<< fREarth/1e3;
+  LOG("ComputeAttenuation", pINFO) <<"fREarth = "<< fREarth/1e3;
 
   struct Layer{ double r1, r2, rho; TString Composition; };
   vector<Layer> VecLayers;
@@ -596,45 +596,45 @@ void GetCommandLineArgs(int argc, char ** argv)
 
       if(opt.compare("-n")==0){   
         i++;
-        LOG("NuPropEarth", pDEBUG) << "Reading number of events to generate";
+        LOG("ComputeAttenuation", pDEBUG) << "Reading number of events to generate";
         gOptNev = atof(argv[i]);
       }          
       if(opt.compare("-s")==0){   
         i++;
-        LOG("NuPropEarth", pDEBUG) << "Reading seed";
+        LOG("ComputeAttenuation", pDEBUG) << "Reading seed";
         gOptRanSeed = atoi(argv[i]);
       }          
       if(opt.compare("-p")==0){   
         i++;
-        LOG("NuPropEarth", pINFO) << "Reading neutrino flavor";
+        LOG("ComputeAttenuation", pINFO) << "Reading neutrino flavor";
         gOptPdg = atoi(argv[i]);
       }          
       if(opt.compare("-t")==0){   
         i++;
-        LOG("NuPropEarth", pINFO) << "Reading neutrino angle";
+        LOG("ComputeAttenuation", pINFO) << "Reading neutrino angle";
         gOptCThv = atof(argv[i]);
       }          
       if(opt.compare("-a")==0){   
         i++;
-        LOG("NuPropEarth", pINFO) << "Reading neutrino spectrum alpha";
+        LOG("ComputeAttenuation", pINFO) << "Reading neutrino spectrum alpha";
         gOptAlpha = atof(argv[i]);
       }          
       if(opt.compare("-e")==0){   
         i++;
-        LOG("NuPropEarth", pINFO) << "Reading neutrino energy";
+        LOG("ComputeAttenuation", pINFO) << "Reading neutrino energy";
         gOptEv = atof(argv[i]);
       }          
       if(opt.compare("--cross-sections")==0){ 
         i++;
-        LOG("NuPropEarth", pINFO) << "Reading cross-section file";
+        LOG("ComputeAttenuation", pINFO) << "Reading cross-section file";
         gOptInpXSecFile = argv[i];  
       } 
       if(opt.compare("-enable-eloss")==0){ 
-        LOG("NuPropEarth", pINFO) << "Enable energy loss for tau propagation";
+        LOG("ComputeAttenuation", pINFO) << "Enable energy loss for tau propagation";
         gOptEnableEnergyLoss = true;  
       } 
       if(opt.compare("-enable-decaylength")==0){ 
-        LOG("NuPropEarth", pINFO) << "Enable decay length for tau propagation";
+        LOG("ComputeAttenuation", pINFO) << "Enable decay length for tau propagation";
         gOptEnableDecayLength = true;  
       } 
 
@@ -644,9 +644,9 @@ void GetCommandLineArgs(int argc, char ** argv)
   ostringstream expinfo;
   if(gOptNev > 0)            { expinfo << gOptNev            << " events";   } 
 
-  LOG("NuPropEarth", pNOTICE) << "\n\n" << utils::print::PrintFramedMesg("NuPropEarth job configuration");
+  LOG("ComputeAttenuation", pNOTICE) << "\n\n" << utils::print::PrintFramedMesg("NuPropEarth job configuration");
 
-  LOG("NuPropEarth", pNOTICE) 
+  LOG("ComputeAttenuation", pNOTICE) 
      << "\n"
      << "\n @@ Random number seed: " << gOptRanSeed
      << "\n @@ Using cross-section file: " << gOptInpXSecFile

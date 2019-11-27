@@ -36,9 +36,9 @@ source setup.sh
 5. Install this version of [GENIE3 (w/ HEDIS)](https://github.com/pochoarus/GENIE-HEDIS/tree/apfel)
 
 ```
-git clone https://github.com/pochoarus/GENIE-HEDIS.git $GENIE
+git clone -b apfel https://github.com/pochoarus/GENIE-HEDIS.git $GENIE
 cd $GENIE
-./configure --enable-lhapdf6 --enable-apfel
+./configure --enable-lhapdf6 --enable-apfel --with-lhapdf6-inc=/path/to/lhapdf6/include --with-lhapdf6-lib=/path/to/lhapdf6/lib --with-apfel-inc=/path/to/apfel/include --with-apfel-lib=/path/to/apfel/lib
 make
 ```
 

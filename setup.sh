@@ -26,7 +26,7 @@ export LD_LIBRARY_PATH=$LHAPDF/lib:$LD_LIBRARY_PATH
 
 #apfel
 export APFEL=/path/to/directory/were/apfel/is/installed
-export LD_LIBRARY_PATH=$APFEL/install/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=$APFEL/lib:$LD_LIBRARY_PATH
 
 #----------------------------------------------------------
 # setup nupropearth

@@ -426,14 +426,16 @@ int main(int argc, char** argv)
 //**************************************************************************
 void BuildEarth(string geofilename){
 
-  LOG("ComputeAttenuation", pINFO) <<"fREarth = "<< fREarth/1e3;
+  double fREarth_km = fREarth_m/1e3;
+
+  LOG("ComputeAttenuation", pINFO) << "fREarth_km = "<< fREarth_km;
 
   struct Layer{ double r1, r2, rho; TString Composition; };
   vector<Layer> VecLayers;
 
   const int NLAYERS = 9;
   TString fComp[NLAYERS] = { "Core", "Core", "Mantle", "Mantle", "Mantle", "Mantle", "Mantle", "Mantle", "Rock"       };
-  double fR[NLAYERS]     = { 1221.5,  3480.,    5701.,    5771.,    5971.,    6151.,   6346.6,    6356.,  fREarth/1e3 }; //km
+  double fR[NLAYERS]     = { 1221.5,  3480.,    5701.,    5771.,    5971.,    6151.,   6346.6,    6356.,  fREarth_km }; //km
 
   double fEarthCoeff[NLAYERS][4] = {
     {13.0885,0.,-8.8381,0.},
@@ -467,7 +469,7 @@ void BuildEarth(string geofilename){
     layer.r1 = r1;
     layer.r2 = r2;
     rmean    = ( r2 + r1 ) / 2.;
-    layer.rho         = fEarthCoeff[iLayer][0] + fEarthCoeff[iLayer][1]*rmean/fREarth + fEarthCoeff[iLayer][2]*pow(rmean/fREarth,2) + fEarthCoeff[iLayer][3]*pow(rmean/fREarth,3);
+    layer.rho         = fEarthCoeff[iLayer][0] + fEarthCoeff[iLayer][1]*rmean/fREarth_km + fEarthCoeff[iLayer][2]*pow(rmean/fREarth_km,2) + fEarthCoeff[iLayer][3]*pow(rmean/fREarth_km,3);
     layer.Composition = fComp[iLayer];
     
     VecLayers.push_back(layer);
@@ -482,15 +484,15 @@ void BuildEarth(string geofilename){
     r2 = (iStep+2)*step;
     iStep++;
     
-    if( r1>=fR[NLAYERS-4] ) break;
+    if( r1>=fR[NLAYERS-3] ) break;
     
   }
 
-  for(int iiLayer=NLAYERS-3; iiLayer<NLAYERS; iiLayer++){ // constant density
+  for(int iiLayer=NLAYERS-2; iiLayer<NLAYERS; iiLayer++){ // constant density
     Layer layer;
     layer.r1          = fR[iiLayer-1];
     layer.r2          = fR[iiLayer];
-    layer.rho         = fEarthCoeff[iiLayer][0] + fEarthCoeff[iiLayer][1]*layer.r2/fREarth + fEarthCoeff[iiLayer][2]*pow(layer.r2/fREarth,2) + fEarthCoeff[iiLayer][3]*pow(layer.r2/fREarth,3);
+    layer.rho         = fEarthCoeff[iiLayer][0] + fEarthCoeff[iiLayer][1]*layer.r2/fREarth_km + fEarthCoeff[iiLayer][2]*pow(layer.r2/fREarth_km,2) + fEarthCoeff[iiLayer][3]*pow(layer.r2/fREarth_km,3);
     layer.Composition = fComp[iiLayer];    
     VecLayers.push_back(layer);
   }
@@ -534,6 +536,8 @@ void BuildEarth(string geofilename){
   TGeoVolume  * Layer       [VecLayers.size()];
   for(unsigned iiLayer=0; iiLayer<VecLayers.size(); iiLayer++){
     
+    LOG("ComputeAttenuation", pDEBUG) << "Layer=" << iiLayer << ", Composition=" << VecLayers[iiLayer].Composition << ", r1=" << VecLayers[iiLayer].r1 << ", r2=" << VecLayers[iiLayer].r2 << ", rho=" << VecLayers[iiLayer].rho;
+
     TString name = VecLayers[iiLayer].Composition;
     name += iiLayer;
     

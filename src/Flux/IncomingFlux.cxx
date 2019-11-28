@@ -113,6 +113,6 @@ void IncomingFlux::ResetSelection(void)
 {
 
   fgPdgCI = fPdg;
-  fgX4I.SetXYZT    ( 0.,     0., -fREarth, 0. );
+  fgX4I.SetXYZT    ( 0.,     0., -fREarth_m, 0. );
   
 }

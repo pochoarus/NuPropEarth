@@ -6,7 +6,7 @@ LIBRARIES := $(LIBRARIES) $(shell $(GENIE)/src/scripts/setup/genie-config --libs
 
 #nuearthprop
 CPP_INCLUDES := $(CPP_INCLUDES) -I$(NUPROPEARTH)/src
-LIBRARIES := $(LIBRARIES) -L$(NUPROPEARTH)/lib -lGFlux
+LIBRARIES := $(LIBRARIES) -L$(NUPROPEARTH)/lib -lGFlux -lGDriver
 
 # tauola
 CPP_INCLUDES := $(CPP_INCLUDES) -I$(TAUOLA)/include/Tauola

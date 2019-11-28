@@ -22,7 +22,6 @@
 #include "Framework/EventGen/EventRecord.h"
 #include "Framework/EventGen/GFluxI.h"
 #include "Framework/EventGen/GEVGDriver.h"
-#include "Framework/EventGen/GTRJDriver.h"
 #include "Framework/Messenger/Messenger.h"
 #include "Framework/Numerical/RandomGen.h"
 #include "Framework/ParticleData/PDGCodes.h"
@@ -40,6 +39,7 @@
 #include "Tauola.h"
 #include "TauolaHEPEVTParticle.h"
 
+#include "Driver/GTRJDriver.h"
 #include "Flux/IncomingFlux.h"
 
 #include <boost/preprocessor/stringize.hpp>

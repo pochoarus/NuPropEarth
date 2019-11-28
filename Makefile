@@ -15,6 +15,13 @@ Flux: FORCE
 	cd $(NUPROPEARTH)/src/Flux && $(MAKE)
 	cd $(NUPROPEARTH)
 
+Driver: FORCE
+	@echo " "
+	@echo "** Building Driver..."
+	test -d lib || mkdir lib
+	cd $(NUPROPEARTH)/src/Driver && $(MAKE)
+	cd $(NUPROPEARTH)
+
 Apps: FORCE
 	@echo " "
 	@echo "** Building Apps..."
@@ -26,6 +33,7 @@ clean: FORCE
 	@echo " "
 	@echo "** Cleaning all.. "
 	cd $(NUPROPEARTH)/src/Flux && $(MAKE) clean
+	cd $(NUPROPEARTH)/src/Driver && $(MAKE) clean
 	cd $(NUPROPEARTH)/src/Apps && $(MAKE) clean
 	rm -f $(NUPROPEARTH)/lib/* $(NUPROPEARTH)/bin/*
 	cd $(NUPROPEARTH)

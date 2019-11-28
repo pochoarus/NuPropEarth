@@ -4,7 +4,7 @@ MAKEFILE = Makefile
 
 include $(GENIE)/src/make/Make.include
 
-BUILD_TARGETS = Flux Apps
+BUILD_TARGETS = Flux Driver Apps
 
 all:     $(BUILD_TARGETS)
 

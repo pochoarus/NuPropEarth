@@ -48,12 +48,15 @@ PDGCodeList & IncomingFlux::FluxParticles(void)
 {
 
   PDGCodeList * fList = new PDGCodeList(false);
-  fList->push_back(12);
-  fList->push_back(-12);
-  fList->push_back(14);
-  fList->push_back(-14);
-  fList->push_back(16);
-  fList->push_back(-16);
+  if (fPdg==0) {
+    fList->push_back(12);
+    fList->push_back(-12);
+    fList->push_back(14);
+    fList->push_back(-14);
+    fList->push_back(16);
+    fList->push_back(-16);
+  }
+  else fList->push_back(fPdg);
   return *fList;
 
 }

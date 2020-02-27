@@ -68,21 +68,22 @@ void GetCommandLineArgs (int argc, char ** argv);
 void BuildEarth     (string geofilename);
 
 // User-specified options:
+string          gOptOutDir = "./";               
 long int        gOptRanSeed;               
 string          gOptInpXSecFile;           
 int             gOptNev;              
 int             gOptPdg;                   
-double          gOptEv = -1; //no monoenergetic
-double          gOptCThv = -1; //no fixed angle                   
+double          gOptEmono = -1; //no monoenergetic
+double          gOptEmin = 1e2;
+double          gOptEmax = 1e10;
+double          gOptCthmono = -1; //no fixed angle                   
+double          gOptCthmin = -1.;
+double          gOptCthmax =  1.;
 double          gOptAlpha = 1; //flat spectrum in log10e
 bool            gOptEnableEnergyLoss  = false;
 bool            gOptEnableDecayLength = false;
 
-double Emin = 1e2;
-double Emax = 1e10;
 
-double Cthmin = -1.;
-double Cthmax =  1.;
 
 const int NMAXINT = 100;
 
@@ -118,7 +119,7 @@ int main(int argc, char** argv)
   GeomAnalyzerI * geom_driver = dynamic_cast<GeomAnalyzerI *> (rgeom);
 
   LOG("ComputeAttenuation", pDEBUG) << "Creating GFluxI...";
-  IncomingFlux * flx_driver = new IncomingFlux(gOptPdg, gOptAlpha, Cthmin, Cthmax, gOptCThv, Emin, Emax, gOptEv);
+  IncomingFlux * flx_driver = new IncomingFlux(gOptPdg, gOptAlpha, gOptCthmin, gOptCthmax, gOptCthmono, gOptEmin, gOptEmax, gOptEmono);
 
   RunOpt::Instance()->BuildTune();
 
@@ -158,7 +159,13 @@ int main(int argc, char** argv)
   RandomGen * rnd = RandomGen::Instance();
 
   LOG("ComputeAttenuation", pINFO) << "Creating output name";
-  string OutEvFile = "NuEarthProp_" + RunOpt::Instance()->Tune()->Name() + Form("_nu%d_cth%g.root",gOptPdg,gOptCThv);
+  string OutEvFile = gOptOutDir + "/NuEarthProp_" + RunOpt::Instance()->Tune()->Name() + Form("_nu%d",gOptPdg);
+  if (gOptCthmono!=-1.) OutEvFile += Form("_cth%g",gOptCthmono);
+  else                  OutEvFile += Form("_cth%g-%g",gOptCthmin,gOptCthmax);
+  if (gOptEmono!=-1.)   OutEvFile += Form("_e%g",gOptEmono);
+  else                  OutEvFile += Form("_e%g-%g",gOptEmin,gOptEmax);
+  OutEvFile += Form("_s%d",gOptRanSeed);
+  OutEvFile += ".root";
 
   LOG("ComputeAttenuation", pNOTICE) << "@@ Output file name: " << OutEvFile;
 
@@ -375,7 +382,7 @@ int main(int argc, char** argv)
       }
       delete event;
 
-      if ( SecNu_Pdg!=0 && SecNu_E>Emin ) {
+      if ( SecNu_Pdg!=0 && SecNu_E>gOptEmin ) {
         LOG("ComputeAttenuation", pDEBUG) << "@@SecNu      = "   << SecNu_Pdg << " , E = " << SecNu_E;
         LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << SecNu_Pos[0] << " , " << SecNu_Pos[1] << " , " << SecNu_Pos[2] << " , " << SecNu_Pos[3] << " ]";
         LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << SecNu_Mom[0]/SecNu_E << " , " << SecNu_Mom[1]/SecNu_E << " , " << SecNu_Mom[2]/SecNu_E << " ]";
@@ -608,25 +615,50 @@ void GetCommandLineArgs(int argc, char ** argv)
         LOG("ComputeAttenuation", pDEBUG) << "Reading seed";
         gOptRanSeed = atoi(argv[i]);
       }          
+      if(opt.compare("-o")==0){   
+        i++;
+        LOG("ComputeAttenuation", pDEBUG) << "Reading output dir";
+        gOptOutDir = argv[i];
+      }          
       if(opt.compare("-p")==0){   
         i++;
         LOG("ComputeAttenuation", pINFO) << "Reading neutrino flavor";
         gOptPdg = atoi(argv[i]);
-      }          
-      if(opt.compare("-t")==0){   
-        i++;
-        LOG("ComputeAttenuation", pINFO) << "Reading neutrino angle";
-        gOptCThv = atof(argv[i]);
       }          
       if(opt.compare("-a")==0){   
         i++;
         LOG("ComputeAttenuation", pINFO) << "Reading neutrino spectrum alpha";
         gOptAlpha = atof(argv[i]);
       }          
+      if(opt.compare("-t")==0){   
+        i++;
+        LOG("ComputeAttenuation", pINFO) << "Reading neutrino mono angle";
+        gOptCthmono = atof(argv[i]);
+      }          
+      if(opt.compare("-tmin")==0){   
+        i++;
+        LOG("ComputeAttenuation", pINFO) << "Reading neutrino min angle";
+        gOptCthmin = atof(argv[i]);
+      }          
+      if(opt.compare("-tmax")==0){   
+        i++;
+        LOG("ComputeAttenuation", pINFO) << "Reading neutrino max angle";
+        gOptCthmax = atof(argv[i]);
+      }          
       if(opt.compare("-e")==0){   
         i++;
-        LOG("ComputeAttenuation", pINFO) << "Reading neutrino energy";
-        gOptEv = atof(argv[i]);
+        LOG("ComputeAttenuation", pINFO) << "Reading neutrino mono energy";
+        gOptEmono = atof(argv[i]);
+      }          
+      if(opt.compare("-emin")==0){   
+        i++;
+        LOG("ComputeAttenuation", pINFO) << "Reading neutrino min energy";
+        gOptEmin = atof(argv[i]);
+      }          
+      if(opt.compare("-emax")==0){   
+        i++;
+        LOG("ComputeAttenuation", pINFO) << "Reading neutrino max energy";
+        gOptEmax = atof(argv[i]);
       }          
       if(opt.compare("--cross-sections")==0){ 
         i++;
@@ -654,15 +686,20 @@ void GetCommandLineArgs(int argc, char ** argv)
      << "\n"
      << "\n @@ Random number seed: " << gOptRanSeed
      << "\n @@ Using cross-section file: " << gOptInpXSecFile
+     << "\n @@ Using output dir: " << gOptOutDir
      << "\n @@ Exposure" 
      << "\n\t" << expinfo.str()
      << "\n @@ Kinematics" 
-     << "\n\t Pdg   = " << gOptPdg
-     << "\n\t CosTheta = " << gOptCThv << " deg."
-     << "\n\t E   = " << gOptEv << " GeV"
-     << "\n\t Alpha = " << gOptAlpha
-     << "\n\t EnergyLoss = " << gOptEnableEnergyLoss
-     << "\n\t DecayLength = " << gOptEnableDecayLength
+     << "\n\t Pdg          = " << gOptPdg
+     << "\n\t CosTheta     = " << gOptCthmono
+     << "\n\t CosTheta_min = " << gOptCthmin
+     << "\n\t CosTheta_max = " << gOptCthmax
+     << "\n\t E            = " << gOptEmono << " GeV"
+     << "\n\t Emin         = " << gOptEmin << " GeV"
+     << "\n\t Emax         = " << gOptEmax << " GeV"
+     << "\n\t Alpha        = " << gOptAlpha
+     << "\n\t EnergyLoss   = " << gOptEnableEnergyLoss
+     << "\n\t DecayLength  = " << gOptEnableDecayLength
      << "\n\n";
 
 

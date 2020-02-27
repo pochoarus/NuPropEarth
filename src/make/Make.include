@@ -13,8 +13,7 @@ CPP_INCLUDES := $(CPP_INCLUDES) -I$(TAUOLA)/include/Tauola
 LIBRARIES := $(LIBRARIES) -L$(TAUOLA)/lib -lTauolaCxxInterface -lTauolaFortran   
 
 # tausic
-#CERNLIBS = `$(CERN)/cernlib mathlib packlib kernlib phtools`
-CERNLIBS = /afs/in2p3.fr/cernlib/amd64_sl7/2006b_oldAFS/lib/libmathlib.a /afs/in2p3.fr/cernlib/amd64_sl7/2006b_oldAFS/lib/libphtools.a /afs/in2p3.fr/cernlib/amd64_sl7/2006b_oldAFS/lib/libgeant.a /afs/in2p3.fr/cernlib/amd64_sl7/2006b_oldAFS/lib/libgraflib.a /afs/in2p3.fr/cernlib/amd64_sl7/2006b_oldAFS/lib/libgrafX11.a /afs/in2p3.fr/cernlib/amd64_sl7/2006b_oldAFS/lib/libpacklib.a -lX11 -lnsl -lcrypt -ldl
+CERNLIBS = `cernlib mathlib packlib kernlib phtools`
 LIBRARIES := $(LIBRARIES) -lgfortran $(NUPROPEARTH)/tausic/2004/tausic-sr-2004.f $(NUPROPEARTH)/tausic/2004/tausic-sw-2004.f $(CERNLIBS)   
 
 CXXFLAGS := $(CXXFLAGS) -std=c++11

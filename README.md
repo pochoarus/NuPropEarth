@@ -4,7 +4,7 @@ Module to simulation the propagation of neutrinos through the Earth.
 These are the main dependencies:
 
 - GENIE3 (w/ HEDIS)
-- TAUOLA++
+- TAUOLA++ (v1.1.8)
 
 Then GENIE3 (w/ HEDIS) requires several external packages:
 
@@ -33,10 +33,10 @@ cd NuPropEarth
 source setup.sh
 ```
 
-5. Install this version of [GENIE3 (w/ HEDIS)](https://github.com/pochoarus/GENIE-HEDIS/tree/apfel)
+5. Install this version of [GENIE3 (w/ HEDIS)](https://github.com/pochoarus/GENIE-HEDIS/tree/nupropearth)
 
 ```
-git clone -b apfel https://github.com/pochoarus/GENIE-HEDIS.git $GENIE
+git clone -b nupropearth https://github.com/pochoarus/GENIE-HEDIS.git $GENIE
 cd $GENIE
 ./configure --enable-lhapdf6 --enable-apfel --with-lhapdf6-inc=$LHAPDF/include --with-lhapdf6-lib=$LHAPDF/lib --with-apfel-inc=$APFEL/include --with-apfel-lib=$APFEL/lib
 make

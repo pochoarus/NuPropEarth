@@ -9,8 +9,8 @@ CPP_INCLUDES := $(CPP_INCLUDES) -I$(NUPROPEARTH)/src
 LIBRARIES := $(LIBRARIES) -L$(NUPROPEARTH)/lib -lGFlux -lGDriver
 
 # tauola
-CPP_INCLUDES := $(CPP_INCLUDES) -I$(TAUOLA)/include/Tauola
-LIBRARIES := $(LIBRARIES) -L$(TAUOLA)/lib -lTauolaCxxInterface -lTauolaFortran   
+CPP_INCLUDES := $(CPP_INCLUDES) -I$(TAUOLA)/include
+LIBRARIES := $(LIBRARIES) -L$(TAUOLA)/lib -lTauolaCxxInterface -lTauolaFortran -lTauolaHEPEVT  
 
 # tausic
 CERNLIBS = `cernlib mathlib packlib kernlib phtools`

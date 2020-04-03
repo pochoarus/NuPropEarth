@@ -36,8 +36,8 @@
 #include "Framework/Utils/RunOpt.h"
 #include "Tools/Geometry/ROOTGeomAnalyzer.h"
 
-#include "Tauola.h"
-#include "TauolaHEPEVTParticle.h"
+#include "Tauola/Tauola.h"
+#include "Tauola/TauolaHEPEVTParticle.h"
 
 #include "Driver/GTRJDriver.h"
 #include "Flux/IncomingFlux.h"

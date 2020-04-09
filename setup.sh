@@ -36,6 +36,9 @@ export LD_LIBRARY_PATH=$APFEL/lib:$LD_LIBRARY_PATH
 export TAUOLA=/path/to/directory/were/tauola/is/installed
 export LD_LIBRARY_PATH=$TAUOLA/lib:$LD_LIBRARY_PATH
 
+#TAUSIC
+export TAUSIC=/path/to/directory/were/tausic/is/installed
+
 #cern
 export CERN=/path/to/directory/were/cernlib/is/installed
 

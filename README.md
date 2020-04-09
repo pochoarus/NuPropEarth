@@ -5,6 +5,7 @@ These are the main dependencies:
 
 - GENIE3 (w/ HEDIS)
 - TAUOLA++ (v1.1.8)
+- TAUSIC
 
 Then GENIE3 (w/ HEDIS) requires several external packages:
 
@@ -16,7 +17,7 @@ Then GENIE3 (w/ HEDIS) requires several external packages:
 
 ## HOW TO USE IT FIRST TIME
 
-1. Install all the external packages: PYTHIA6,TAUOLA,LHAPDF6,APFEL,ROOT6
+1. Install all the external packages: PYTHIA6,TAUOLA,TAUSIC,LHAPDF6,APFEL,ROOT6
 
 2. Download NuPropEarth module on your machine 
 

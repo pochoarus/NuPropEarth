@@ -14,7 +14,7 @@ LIBRARIES := $(LIBRARIES) -L$(TAUOLA)/lib -lTauolaCxxInterface -lTauolaFortran -
 
 # tausic
 CERNLIBS = `cernlib mathlib packlib kernlib phtools`
-LIBRARIES := $(LIBRARIES) -lgfortran $(NUPROPEARTH)/tausic/2004/tausic-sr-2004.f $(NUPROPEARTH)/tausic/2004/tausic-sw-2004.f $(CERNLIBS)   
+LIBRARIES := $(LIBRARIES) -lgfortran $(TAUSIC)/tausic-sr-2004.f $(TAUSIC)/tausic-sw-2004.f $(CERNLIBS)   
 
 CXXFLAGS := $(CXXFLAGS) -std=c++11
 

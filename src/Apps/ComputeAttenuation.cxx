@@ -145,7 +145,8 @@ int main(int argc, char** argv)
   double mtau = Tauola::getTauMass(); //use this mass to avoid energy conservation warning in tauola
 
   LOG("ComputeAttenuation", pDEBUG) << "Initializing TAUSIC...";
-  string cp_command("cp ./tausic/2004/tausic*.dat .");
+  string tausicpath = gSystem->Getenv("TAUSIC");
+  string cp_command = "cp "+tausicpath+"/tausic*.dat .";
   system(cp_command.c_str());
 
   int tauin =2;
@@ -321,7 +322,6 @@ int main(int argc, char** argv)
               SecNu_Pos[1] = vyf/100.;
               SecNu_Pos[2] = vzf/100.;
               SecNu_Pos[3] = tf/1e9; //from ns (tausic) to s
-              std::cout << SecNu_E/Ef << std::endl;
               delete Tauola_evt;
               break;
             }

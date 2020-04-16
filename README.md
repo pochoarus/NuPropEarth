@@ -4,7 +4,7 @@ Module to simulation the propagation of neutrinos through the Earth.
 These are the main dependencies:
 
 - GENIE3 (w/ HEDIS)
-- TAUOLA++ (v1.1.8)
+- TAUOLA++ (v1.1.8) [modify src/tauolaCInterfaces/TauolaParticle.cxx line 295 using double m=Tauola::getTauMass();]
 - TAUSIC
 
 Then GENIE3 (w/ HEDIS) requires several external packages:

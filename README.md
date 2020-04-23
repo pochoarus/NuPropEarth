@@ -39,7 +39,7 @@ git clone https://github.com/pochoarus/NuPropEarth.git
 cd NuPropEarth
 ```
 
-3. Define the envioroment in which you will work in source.sh (for instance GENIE,PYHTIA6,LHAPDF6,etc.)
+3. Define the enviroment in which you will work in source.sh (for instance GENIE,PYHTIA6,LHAPDF6,etc.)
 
 4. Source the enviroment
 
@@ -78,6 +78,7 @@ source setup.sh
 ComputeAttenuation -n $NUMBEROFEVENTS -t $COSTHETA -p $NUPDG --cross-sections ${GENIE}/genie_xsec/${TUNE}_dx0.01dy0.01_n200_nuall_nucleon_noglres.xml --event-generator-list HEDIS --tune $TUNE
 ```
 
+
 ## Citation
 
 To cite this work, and for more information, please refer to
@@ -86,7 +87,7 @@ Complete predictions for high-energy neutrino propagation in matter
 
 preprint: [arXiv:2004.04756](https://arxiv.org/abs/2004.04756)
 
-NuPropEarth is GENIE based application. [GENIE citing rules](https://hep.ph.liv.ac.uk/~costasa/genie/citing.html)
+NuPropEarth is GENIE based application [GENIE citing rules](https://hep.ph.liv.ac.uk/~costasa/genie/citing.html).
 
 
 

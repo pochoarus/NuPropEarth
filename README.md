@@ -84,10 +84,9 @@ To cite this work, and for more information, please refer to
 
 Complete predictions for high-energy neutrino propagation in matter
 
-preprint: arXiv:2004.04756
+preprint: [arXiv:2004.04756](https://arxiv.org/abs/2004.04756)
 
-NuPropEarth is GENIE based application. For information about GENIE citing rules visit
-https://hep.ph.liv.ac.uk/~costasa/genie/citing.html
+NuPropEarth is GENIE based application. [GENIE citing rules](https://hep.ph.liv.ac.uk/~costasa/genie/citing.html)
 
 
 

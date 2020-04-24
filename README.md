@@ -1,4 +1,4 @@
-# NuPropEarth
+![logo](/logo.png)
 
 NuPropEarth is a tool used to propagated neutrinos through the Earth. It has the structure of a general-purpose Monte Carlo event generator, and therefore allows following the path and interactions of individual neutrinos as they travel through Earth on an an event-by-event basis. The main goal of the NuPropEarth framework is to compute the attenuation coefficients, defined as ratios between the incoming neutrino flux to the Earth and the flux arriving at the detector volume.
 

@@ -76,10 +76,13 @@ int             gOptPdg;
 double          gOptEmono = -1; //no monoenergetic
 double          gOptEmin = 1e2;
 double          gOptEmax = 1e10;
-double          gOptCthmono = -1; //no fixed angle                   
+double          gOptCthmono = -2; //no fixed angle                   
 double          gOptCthmin = -1.;
 double          gOptCthmax =  1.;
 double          gOptAlpha = 1; //flat spectrum in log10e
+double          gOptDepth = 0.; //Detector position originally at surface
+double          gOptRadius = 0.; //Detector Radius (radius of a cylindrical shape) originally a point
+double          gOptHeight = 0.; //Detector height (height of the cylinder centerd at gOptDepth) originally a point
 bool            gOptEnableEnergyLoss  = false;
 bool            gOptEnableDecayLength = false;
 
@@ -119,7 +122,7 @@ int main(int argc, char** argv)
   GeomAnalyzerI * geom_driver = dynamic_cast<GeomAnalyzerI *> (rgeom);
 
   LOG("ComputeAttenuation", pDEBUG) << "Creating GFluxI...";
-  IncomingFlux * flx_driver = new IncomingFlux(gOptPdg, gOptAlpha, gOptCthmin, gOptCthmax, gOptCthmono, gOptEmin, gOptEmax, gOptEmono);
+  IncomingFlux * flx_driver = new IncomingFlux(gOptPdg, gOptAlpha, gOptCthmin, gOptCthmax, gOptCthmono, gOptEmin, gOptEmax, gOptEmono,gOptDepth,gOptRadius,gOptHeight);
 
   RunOpt::Instance()->BuildTune();
 
@@ -161,7 +164,7 @@ int main(int argc, char** argv)
 
   LOG("ComputeAttenuation", pINFO) << "Creating output name";
   string OutEvFile = gOptOutDir + "/NuEarthProp_" + RunOpt::Instance()->Tune()->Name() + Form("_nu%d",gOptPdg);
-  if (gOptCthmono!=-1.) OutEvFile += Form("_cth%g",gOptCthmono);
+  if (gOptCthmono!=-2.) OutEvFile += Form("_cth%g",gOptCthmono);
   else                  OutEvFile += Form("_cth%g-%g",gOptCthmin,gOptCthmax);
   if (gOptEmono!=-1.)   OutEvFile += Form("_e%g",gOptEmono);
   else                  OutEvFile += Form("_e%g-%g",gOptEmin,gOptEmax);
@@ -403,7 +406,7 @@ int main(int argc, char** argv)
       Nu_Out = (P4_Out[3]==P4_In[3] && X4_Out[2]==X4_In[2]) ? 1 : flx_driver->GetPdgI();     
     }
 
-    outtree->Fill();
+    outtree->Fill();   
 
     NInt = 0;
     NIntCC = 0;
@@ -440,9 +443,9 @@ void BuildEarth(string geofilename){
   struct Layer{ double r1, r2, rho; TString Composition; };
   vector<Layer> VecLayers;
 
-  const int NLAYERS = 9;
-  TString fComp[NLAYERS] = { "Core", "Core", "Mantle", "Mantle", "Mantle", "Mantle", "Mantle", "Mantle", "Rock"       };
-  double fR[NLAYERS]     = { 1221.5,  3480.,    5701.,    5771.,    5971.,    6151.,   6346.6,    6356.,  fREarth_km }; //km
+  const int NLAYERS = 10;
+  TString fComp[NLAYERS] = { "Core", "Core", "Mantle", "Mantle", "Mantle", "Mantle", "Mantle", "Mantle", "Rock", "Ice"       };
+  double fR[NLAYERS]     = { 1221.5,  3480.,    5701.,    5771.,    5971.,    6151.,   6346.6,    6356.,  6368.,  fREarth_km }; //km
 
   double fEarthCoeff[NLAYERS][4] = {
     {13.0885,0.,-8.8381,0.},
@@ -453,7 +456,8 @@ void BuildEarth(string geofilename){
     {7.1089,-3.8045,0.,0.},
     {2.691,0.6924,0.,0.},
     {2.9,0.,0.,0.},
-    {2.65,0.,0.,0.}
+    {2.6,0.,0.,0.},
+    {0.9168,0.,0.,0.}
   };
   
   
@@ -491,11 +495,11 @@ void BuildEarth(string geofilename){
     r2 = (iStep+2)*step;
     iStep++;
     
-    if( r1>=fR[NLAYERS-3] ) break;
+    if( r1>=fR[NLAYERS-4] ) break;
     
   }
 
-  for(int iiLayer=NLAYERS-2; iiLayer<NLAYERS; iiLayer++){ // constant density
+  for(int iiLayer=NLAYERS-3; iiLayer<NLAYERS; iiLayer++){ // constant density
     Layer layer;
     layer.r1          = fR[iiLayer-1];
     layer.r2          = fR[iiLayer];
@@ -504,7 +508,7 @@ void BuildEarth(string geofilename){
     VecLayers.push_back(layer);
   }
 
-  map<int,double> RockComp, MantleComp, CoreComp;
+  map<int,double> RockComp, MantleComp, CoreComp, IceComp;
   RockComp    .insert(map<int, double>::value_type(1000080160,0.463)     );
   RockComp    .insert(map<int, double>::value_type(1000140280,0.282)     );
   RockComp    .insert(map<int, double>::value_type(1000130270,0.0823)    );
@@ -523,6 +527,8 @@ void BuildEarth(string geofilename){
   MantleComp  .insert(map<int, double>::value_type(1000200400,0.0224)    );
   CoreComp    .insert(map<int, double>::value_type(1000260560,0.9)       );
   CoreComp    .insert(map<int, double>::value_type(1000280580,0.1)       );
+  IceComp     .insert(map<int, double>::value_type(1000080160,0.8881)    );
+  IceComp     .insert(map<int, double>::value_type(1000010010,0.1119)    );
 
   // Define media and volumes
   TGeoManager * GeoManager =  new TGeoManager("VolGenGeo", "generation volume geometry");
@@ -549,7 +555,12 @@ void BuildEarth(string geofilename){
     name += iiLayer;
     
     map<int,double>::iterator iter;
-    if ( VecLayers[iiLayer].Composition=="Rock" )     {
+    if ( VecLayers[iiLayer].Composition=="Ice" )     {
+      LayerMix[iiLayer] = new TGeoMixture( name, IceComp.size(), VecLayers[iiLayer].rho ); 
+      iter = IceComp.begin();
+      for( ; iter != IceComp.end(); ++iter )     LayerMix[iiLayer]->AddElement( pdg::IonPdgCodeToA(iter->first), pdg::IonPdgCodeToZ(iter->first), iter->second );                  
+    }    
+    else if ( VecLayers[iiLayer].Composition=="Rock" )     {
       LayerMix[iiLayer] = new TGeoMixture( name, RockComp.size(), VecLayers[iiLayer].rho ); 
       iter = RockComp.begin();
       for( ; iter != RockComp.end(); ++iter )     LayerMix[iiLayer]->AddElement( pdg::IonPdgCodeToA(iter->first), pdg::IonPdgCodeToZ(iter->first), iter->second );                  
@@ -664,7 +675,22 @@ void GetCommandLineArgs(int argc, char ** argv)
         i++;
         LOG("ComputeAttenuation", pINFO) << "Reading cross-section file";
         gOptInpXSecFile = argv[i];  
-      } 
+      }
+      if(opt.compare("--depth")==0){
+        i++; 
+        LOG("ComputeAttenuation", pINFO) << "Reading detector depth";
+        gOptDepth = atof(argv[i]);  
+      }       
+      if(opt.compare("--radius")==0){
+        i++; 
+        LOG("ComputeAttenuation", pINFO) << "Reading detector radius";
+        gOptRadius = atof(argv[i]);  
+      }
+      if(opt.compare("--height")==0){
+        i++; 
+        LOG("ComputeAttenuation", pINFO) << "Reading detector height";
+        gOptHeight = atof(argv[i]);  
+      }       
       if(opt.compare("-enable-eloss")==0){ 
         LOG("ComputeAttenuation", pINFO) << "Enable energy loss for tau propagation";
         gOptEnableEnergyLoss = true;  
@@ -672,8 +698,7 @@ void GetCommandLineArgs(int argc, char ** argv)
       if(opt.compare("-enable-decaylength")==0){ 
         LOG("ComputeAttenuation", pINFO) << "Enable decay length for tau propagation";
         gOptEnableDecayLength = true;  
-      } 
-
+      }      
     }
   }
 
@@ -698,6 +723,9 @@ void GetCommandLineArgs(int argc, char ** argv)
      << "\n\t Emin         = " << gOptEmin << " GeV"
      << "\n\t Emax         = " << gOptEmax << " GeV"
      << "\n\t Alpha        = " << gOptAlpha
+     << "\n\t Depth        = " << gOptDepth << " m"
+     << "\n\t Radius       = " << gOptRadius << " m"
+     << "\n\t Height       = " << gOptHeight << " m"
      << "\n\t EnergyLoss   = " << gOptEnableEnergyLoss
      << "\n\t DecayLength  = " << gOptEnableDecayLength
      << "\n\n";

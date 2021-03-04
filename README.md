@@ -10,6 +10,7 @@ Alfonso Garcia < alfonsog \at nikhef.nl >
 Rhorry Gauld < r.gauld \at nikhef.nl >
 Aart Heijboer < aart.heijboer \at nikhef.nl >
 Juan Rojo < j.rojo \at vu.nl >
+Victor Valera < vvalera \at nbi.ku.dk >
 </pre>
 
 

@@ -17,7 +17,7 @@ using namespace genie::flux;
 using namespace genie::constants;
 
 //____________________________________________________________________________
-IncomingFlux::IncomingFlux(int pdg, double alpha, double cthmin, double cthmax, double cthmono, double emin, double emax, double emono)
+IncomingFlux::IncomingFlux(int pdg, double alpha, double cthmin, double cthmax, double cthmono, double emin, double emax, double emono, double depth, double radius, double height)
 {
 
   fNewNeutrino = true;
@@ -32,7 +32,10 @@ IncomingFlux::IncomingFlux(int pdg, double alpha, double cthmin, double cthmax, 
 
   fEmin = emin;          
   fEmax = emax;          
-  fEmono = emono;          
+  fEmono = emono;
+  fDepth = depth;
+  fRadius = radius;
+  fHeight = height;         
 
 
   LOG("IncomingFlux", pDEBUG) << "Flux  " << fPdg;
@@ -91,11 +94,42 @@ bool IncomingFlux::GenerateNext_1try(void)
   }
 
   double dz = 0.;
-  if (fCThmono>0.) dz = fCThmono;
+  if (fCThmono>-2.) dz = fCThmono;
   else             dz = fCThmin+(fCThmax-fCThmin)*rnd->RndFlux().Rndm(); 
 
   fgP4I.SetPxPyPzE ( 0., e*TMath::Sqrt(1-dz*dz), e*dz, e );
 
+  if (fRadius == 0 && fHeight ==0) {
+    fgX4I.SetXYZT    ( 0.,  0., -fREarth_m + fDepth, 0. );
+  }
+  else {
+    // If the detector has a finite extension we use a cylindrical shape, depending on the angle we choose a surface to generate the initial position (top, bottom, or lateral face)
+    double A1 = TMath::Pi()*TMath::Power(fRadius,2.)*TMath::Abs(dz); // Corresponds to the area of a circular shape projected into a plane at an angle given by fCth
+    double A2 = 2.0*fRadius*fHeight*TMath::Sqrt(1-dz*dz); // Corresponds to the area of the lateral face of the cylinder projected into the plane
+
+    double f = A1/(A1+A2);  // This fraction is used to select an starting surface by comparing it with a random number between 0 and 1
+  
+    if (rnd->RndFlux().Rndm() < f)  {
+      double randR = fRadius*TMath::Sqrt(rnd->RndFlux().Rndm());
+      double randAlpha = 2.*TMath::Pi()*rnd->RndFlux().Rndm();
+    
+      double randX = randR*TMath::Cos(randAlpha);
+      double randY = randR*TMath::Sin(randAlpha);
+      
+      if (dz < 0) {
+        fgX4I.SetXYZT    ( randX,  randY, -fREarth_m + fDepth - fHeight*0.5, 0. ); // Event at the top of the cylinder
+      }
+      else {
+        fgX4I.SetXYZT    ( randX,  randY, -fREarth_m + fDepth + fHeight*0.5, 0. ); // Event on the bottom of the cylinder
+      }  
+    }
+    else {
+      double randX = 2.*fRadius*(rnd->RndFlux().Rndm()-0.5);
+      double randY = TMath::Sqrt(fRadius*fRadius - randX*randX);
+      fgX4I.SetXYZT    ( randX,  randY, -fREarth_m + fDepth + fHeight*(rnd->RndFlux().Rndm()-0.5), 0. ); // Event at the lateral face
+    }
+  } 
+  
   return true;
 
 }
@@ -113,9 +147,9 @@ void IncomingFlux::InitNeutrino(double px, double py, double pz, double e, doubl
 }
 //___________________________________________________________________________
 void IncomingFlux::ResetSelection(void)
-{
-
+{ 
   fgPdgCI = fPdg;
-  fgX4I.SetXYZT    ( 0.,     0., -fREarth_m, 0. );
+  fgX4I.SetXYZT    ( 0.,  0., -fREarth_m + fDepth, 0. );
   
+
 }

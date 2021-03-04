@@ -18,7 +18,8 @@
 using namespace std;
 using namespace genie;
 
-const double fREarth_m = 6368e3; //currently we neglect the water layer
+//const double fREarth_m = 6368e3; //currently we neglect the water layer
+const double fREarth_m = 6371e3; //we consider the water/ice layer
 
 namespace genie {
   namespace flux  {
@@ -26,7 +27,7 @@ namespace genie {
     class IncomingFlux: public GFluxI {
 
       public :
-        IncomingFlux(int pdg, double alpha, double cthmin, double cthmax, double cthmono, double emin, double emax, double emono);
+        IncomingFlux(int pdg, double alpha, double cthmin, double cthmax, double cthmono, double emin, double emax, double emono, double depth, double radius, double height);
         virtual ~IncomingFlux();
 
         // methods implementing the GENIE GFluxI interface
@@ -63,7 +64,10 @@ namespace genie {
         double           fCThmono;          
         double           fEmin;          
         double           fEmax;          
-        double           fEmono;          
+        double           fEmono;
+        double           fDepth;
+        double           fRadius;
+        double           fHeight;          
 
         bool             fNewNeutrino;
         TLorentzVector   fgP4I;            

@@ -22,7 +22,15 @@ IncomingFlux::IncomingFlux(int pdg, double alpha, double cthmin, double cthmax, 
 
   fNewNeutrino = true;
 
-  fPdg = pdg;          
+  if (pdg==-1) {
+    fPdg.push_back( 12);
+    fPdg.push_back(-12);
+    fPdg.push_back( 14);
+    fPdg.push_back(-14);
+    fPdg.push_back( 16);
+    fPdg.push_back(-16);
+  }
+  else fPdg.push_back(pdg);
 
   fSpectralIndex = alpha;          
 
@@ -37,8 +45,9 @@ IncomingFlux::IncomingFlux(int pdg, double alpha, double cthmin, double cthmax, 
   fRadius = radius;
   fHeight = height;         
 
+  fNeutrino = new GHepParticle();
 
-  LOG("IncomingFlux", pDEBUG) << "Flux  " << fPdg;
+  LOG("IncomingFlux", pDEBUG) << "Flux  " << pdg;
 
 }
 //___________________________________________________________________________
@@ -51,15 +60,14 @@ PDGCodeList & IncomingFlux::FluxParticles(void)
 {
 
   PDGCodeList * fList = new PDGCodeList(false);
-  if (fPdg==0) {
-    fList->push_back(12);
-    fList->push_back(-12);
-    fList->push_back(14);
-    fList->push_back(-14);
-    fList->push_back(16);
-    fList->push_back(-16);
-  }
-  else fList->push_back(fPdg);
+
+  fList->push_back(12);
+  fList->push_back(-12);
+  fList->push_back(14);
+  fList->push_back(-14);
+  fList->push_back(16);
+  fList->push_back(-16);
+
   return *fList;
 
 }
@@ -76,9 +84,6 @@ bool IncomingFlux::GenerateNext(void)
 //___________________________________________________________________________
 bool IncomingFlux::GenerateNext_1try(void)
 {
-
-  // Reset previously generated neutrino code / 4-p / 4-x / wights
-  this->ResetSelection();
 
   RandomGen * rnd = RandomGen::Instance();
 
@@ -97,10 +102,13 @@ bool IncomingFlux::GenerateNext_1try(void)
   if (fCThmono>-2.) dz = fCThmono;
   else             dz = fCThmin+(fCThmax-fCThmin)*rnd->RndFlux().Rndm(); 
 
-  fgP4I.SetPxPyPzE ( 0., e*TMath::Sqrt(1-dz*dz), e*dz, e );
+
+  fNeutrino->SetPdgCode(fPdg[rnd->RndFlux().Integer(fPdg.size())]);
+
+  fNeutrino->SetMomentum( 0., e*TMath::Sqrt(1-dz*dz), e*dz, e );
 
   if (fRadius == 0 && fHeight ==0) {
-    fgX4I.SetXYZT    ( 0.,  0., -fREarth_m + fDepth, 0. );
+    fNeutrino->SetPosition( 0.,  0., -fREarth_m + fDepth, 0. );
   }
   else {
     // If the detector has a finite extension we use a cylindrical shape, depending on the angle we choose a surface to generate the initial position (top, bottom, or lateral face)
@@ -126,7 +134,7 @@ bool IncomingFlux::GenerateNext_1try(void)
     else {
       double randX = 2.*fRadius*(rnd->RndFlux().Rndm()-0.5);
       double randY = TMath::Sqrt(fRadius*fRadius - randX*randX);
-      fgX4I.SetXYZT    ( randX,  randY, -fREarth_m + fDepth + fHeight*(rnd->RndFlux().Rndm()-0.5), 0. ); // Event at the lateral face
+      fNeutrino->SetPosition( randX,  randY, -fREarth_m + fDepth + fHeight*(rnd->RndFlux().Rndm()-0.5), 0. ); // Event at the lateral face
     }
   } 
   
@@ -134,22 +142,11 @@ bool IncomingFlux::GenerateNext_1try(void)
 
 }
 //___________________________________________________________________________
-void IncomingFlux::InitNeutrino(double px, double py, double pz, double e, double x, double y, double z, double t, int pdg, const TLorentzVector & IntVer)
+void IncomingFlux::InitNeutrino(GHepParticle Nu)
 {
 
-  fgPdgCI = pdg;
-
-  fgX4I.SetXYZT(IntVer.X()+x,IntVer.Y()+y,IntVer.Z()+z,IntVer.T()+t);
-  fgP4I.SetPxPyPzE(px,py,pz,e);
+  fNeutrino->Copy(Nu); 
   
   fNewNeutrino = false; 
       
-}
-//___________________________________________________________________________
-void IncomingFlux::ResetSelection(void)
-{ 
-  fgPdgCI = fPdg;
-  fgX4I.SetXYZT    ( 0.,  0., -fREarth_m + fDepth, 0. );
-  
-
 }

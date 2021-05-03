@@ -60,19 +60,34 @@ using namespace genie;
 using namespace genie::flux;
 using namespace genie::geometry;
 
-double d_lifetime = Tauola::tau_lifetime * 1e-3; //lifetime from mm(tauola) to m
-double cSpeed = constants::kLightSpeed/(units::meter/units::second);
+//TAUSIC variables
+int TAUIN = 2;
+int TAUMODEL = 1;
+int ITFLAG = 0; //set lifetime inside tausic
+double RHOR = 2.65; //rock density
+
+//TAUOLA varible
+double d_lifetime = Tauola::tau_lifetime * 1e-1; //lifetime from mm(tauola) to cm
+double mtau = Tauola::getTauMass();
+double cSpeed = constants::kLightSpeed/(units::centimeter/units::nanosecond);
 
 //functions
 void GetCommandLineArgs (int argc, char ** argv);
 void BuildEarth     (string geofilename);
+void FillNeutrino       (GHepParticle * nu, int &pdg, double &px, double &py,double &pz, double &e, double &vx, double &vy, double &vz, double &t) {
+  pdg = nu->Pdg();
+  px  = nu->Px(); py = nu->Py(); pz = nu->Pz(); e = nu->E();
+  vx  = nu->Vx(); vy = nu->Vy(); vz = nu->Vz(); t = nu->Vt();
+}
+vector<GHepParticle> DecayTau (GHepParticle * tau);
+
 
 // User-specified options:
 string          gOptOutDir = "./";               
 long int        gOptRanSeed;               
 string          gOptInpXSecFile;           
 int             gOptNev;              
-int             gOptPdg;                   
+int             gOptPdg = -1; //all flavors                   
 double          gOptEmono = -1; //no monoenergetic
 double          gOptEmin = 1e2;
 double          gOptEmax = 1e10;
@@ -145,19 +160,13 @@ int main(int argc, char** argv)
 
   LOG("ComputeAttenuation", pDEBUG) << "Initializing TAUOLA...";
   Tauola::initialize();
-  double mtau = Tauola::getTauMass(); //use this mass to avoid energy conservation warning in tauola
 
   LOG("ComputeAttenuation", pDEBUG) << "Initializing TAUSIC...";
   string tausicpath = gSystem->Getenv("TAUSIC");
   string cp_command = "cp "+tausicpath+"/tausic*.dat .";
   system(cp_command.c_str());
 
-  int tauin =2;
-  initialize_tausic_sr_(&tauin);
-
-  int TAUMODEL = 1;
-  int ITFLAG = 0; //set lifetime inside tausic
-  double RHOR = 2.65; //rock density
+  initialize_tausic_sr_(&TAUIN);
 
   LOG("ComputeAttenuation", pDEBUG) << "Initializing Random...";
   RandomGen * rnd = RandomGen::Instance();
@@ -175,40 +184,41 @@ int main(int argc, char** argv)
 
   // create file so tree is saved inside
   TFile * outfile = new TFile(OutEvFile.c_str(),"RECREATE");
-
-  int Nu_In;
-  double X4_In[4];
-  double P4_In[4];
-  int Nu_Out;
-  double X4_Out[4];
-  double P4_Out[4];
-  int NInt;
-  int NIntCC;
-  int NIntNC;
+  
+  int NuIn_Pdg,NuOut_Pdg;
+  double NuIn_X4[4],NuOut_X4[4];
+  double NuIn_P4[4],NuOut_P4[4];
+  int NInt,NIntCC,NIntNC;
   int SctID[NMAXINT];
   int IntID[NMAXINT];
-  int Nu_pdg[NMAXINT];
-  int Tgt_pdg[NMAXINT];
-  double Nu_X4[NMAXINT][4];
-  double Nu_P4[NMAXINT][4];
-  TTree *outtree = new TTree("Events","Events");
-  outtree->Branch("Nu_In",    &Nu_In,    "Nu_In/I"       );       
-  outtree->Branch("P4_In",     P4_In,    "P4_In[4]/D"    );       
-  outtree->Branch("X4_In",     X4_In,    "X4_In[4]/D"    );       
-  outtree->Branch("Nu_Out",   &Nu_Out,   "Nu_Out/I"      );       
-  outtree->Branch("P4_Out",    P4_Out,   "P4_Out[4]/D"   );       
-  outtree->Branch("X4_Out",    X4_Out,   "X4_Out[4]/D"   );       
-  outtree->Branch("NInt",     &NInt,     "NInt/I"        );       
-  outtree->Branch("NIntCC",   &NIntCC,   "NIntCC/I"      );       
-  outtree->Branch("NIntNC",   &NIntNC,   "NIntNC/I"      );       
-  outtree->Branch("SctID",     SctID,    "SctID[NInt]/I" );       
-  outtree->Branch("IntID",     IntID,    "IntID[NInt]/I" );       
-  outtree->Branch("Nu",        Nu_pdg,   "Nu[NInt]/I"    );       
-  outtree->Branch("Tgt",       Tgt_pdg,  "Tgt[NInt]/I"   );        
-  outtree->Branch("X4",        Nu_X4,    "X4[NInt][4]/D" );       
-  outtree->Branch("P4",        Nu_P4,    "P4[NInt][4]/D" );
+  int Tgt[NMAXINT];
+  int Nu[NMAXINT];
+
+  TTree *influx = new TTree("InFlux","InFlux");
+  influx->Branch("Nu_In", &NuIn_Pdg, "Nu_In/I"    );       
+  influx->Branch("X4_In",  NuIn_X4,  "X4_In[4]/D" );       
+  influx->Branch("P4_In",  NuIn_P4,  "P4_In[4]/D" );       
+
+  TTree *outflux = new TTree("OutFlux","OutFlux");
+  outflux->Branch("Nu_In",  &NuIn_Pdg,  "Nu_In/I"       );       
+  outflux->Branch("X4_In",  NuIn_X4,    "X4_In[4]/D"    );       
+  outflux->Branch("P4_In",  NuIn_P4,    "P4_In[4]/D"    );       
+  outflux->Branch("Nu_Out", &NuOut_Pdg, "Nu_Out/I"      );       
+  outflux->Branch("X4_Out", NuOut_X4,   "X4_Out[4]/D"   );       
+  outflux->Branch("P4_Out", NuOut_P4,   "P4_Out[4]/D"   );       
+  outflux->Branch("NInt",   &NInt,      "NInt/I"        );       
+  outflux->Branch("NIntCC", &NIntCC,    "NIntCC/I"      );       
+  outflux->Branch("NIntNC", &NIntNC,    "NIntNC/I"      );       
+  outflux->Branch("SctID",  SctID,      "SctID[NInt]/I" );       
+  outflux->Branch("IntID",  IntID,      "IntID[NInt]/I" );       
+  outflux->Branch("Tgt",    Tgt,        "Tgt[NInt]/I"   );        
+  outflux->Branch("Nu",     Nu,         "Nu[NInt]/I"    );       
 
   LOG("ComputeAttenuation", pDEBUG) << "Event loop...";
+
+  GHepParticle * Nu_In = new GHepParticle();
+  GHepParticle * Nu_Out = new GHepParticle();
+  vector<GHepParticle> SecNu;
 
   int NNu = 0;
   NIntCC = 0;
@@ -216,206 +226,97 @@ int main(int argc, char** argv)
   NInt = 0;
   while ( NNu<gOptNev ) {
 
+    if ( SecNu.size()>0 ) {
+      LOG("ComputeAttenuation", pDEBUG) << "@@SecNu      = "   << SecNu[0].Pdg() << " , E = " << SecNu[0].E();
+      LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << SecNu[0].Vx() << " , " << SecNu[0].Vy() << " , " << SecNu[0].Vz() << " , " << SecNu[0].Vt() << " ]";
+      LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << SecNu[0].Px()/SecNu[0].E() << " , " << SecNu[0].Py()/SecNu[0].E() << " , " << SecNu[0].Pz()/SecNu[0].E() << " ]";
+      flx_driver->InitNeutrino(SecNu[0]);
+      SecNu.erase(SecNu.begin()); //remove first entry because it is just process
+    }
+
     EventRecord * event = trj_driver->GenerateEvent();
 
     if (NInt==0) {
       if ( NNu%100==0 ) LOG("ComputeAttenuation", pINFO) << "Event " << NNu << " out of " << gOptNev;
-      Nu_In    = flx_driver->GetPdgI();
-      X4_In[0] = flx_driver->GetX4I().X();  X4_In[1] = flx_driver->GetX4I().Y();  X4_In[2] = flx_driver->GetX4I().Z();  X4_In[3] = flx_driver->GetX4I().T();
-      P4_In[0] = flx_driver->GetP4I().Px(); P4_In[1] = flx_driver->GetP4I().Py(); P4_In[2] = flx_driver->GetP4I().Pz(); P4_In[3] = flx_driver->GetP4I().E();
+      Nu_In = flx_driver->GetNeutrino();
+      FillNeutrino(Nu_In,NuIn_Pdg,NuIn_P4[0],NuIn_P4[1],NuIn_P4[2],NuIn_P4[3],NuIn_X4[0],NuIn_X4[1],NuIn_X4[2],NuIn_X4[3]);
+      influx->Fill();
     }
 
     LOG("ComputeAttenuation", pDEBUG) << "Shooting Neutrino: " << NNu << "( " << NInt << " ) ----->" ;
-    LOG("ComputeAttenuation", pDEBUG) << "@@Flux = " << flx_driver->GetPdgI() << " , E =" << flx_driver->GetP4I().E();
-    LOG("ComputeAttenuation", pDEBUG) << "Postion   = [ " << flx_driver->GetX4I().X() << " , " << flx_driver->GetX4I().Y() << " , " << flx_driver->GetX4I().Z() << " , " << flx_driver->GetX4I().T() << " ] ";
-    LOG("ComputeAttenuation", pDEBUG) << "Direction = [ " << flx_driver->GetP4I().Px()/flx_driver->GetP4I().E() << " , " << flx_driver->GetP4I().Py()/flx_driver->GetP4I().E() << " , " << flx_driver->GetP4I().Pz()/flx_driver->GetP4I().E() << " ]";
+    LOG("ComputeAttenuation", pDEBUG) << "@@Flux = " << flx_driver->GetNeutrino()->Pdg() << " , E =" << flx_driver->GetNeutrino()->E();
+    LOG("ComputeAttenuation", pDEBUG) << "Postion   = [ " << flx_driver->GetNeutrino()->Vx() << " , " << flx_driver->GetNeutrino()->Vy() << " , " << flx_driver->GetNeutrino()->Vz() << " , " << flx_driver->GetNeutrino()->Vt() << " ] ";
+    LOG("ComputeAttenuation", pDEBUG) << "Direction = [ " << flx_driver->GetNeutrino()->Px()/flx_driver->GetNeutrino()->E() << " , " << flx_driver->GetNeutrino()->Py()/flx_driver->GetNeutrino()->E() << " , " << flx_driver->GetNeutrino()->Pz()/flx_driver->GetNeutrino()->E() << " ]";
 
     if (event) {
 
-      int sctid = event->Summary()->ProcInfoPtr()->ScatteringTypeId();
-      int intid = event->Summary()->ProcInfoPtr()->InteractionTypeId();
-      int nupdg = event->Probe()->Pdg();
-      int tgt = ( event->TargetNucleus() ) ? event->TargetNucleus()->Pdg() : event->HitNucleon()->Pdg();
+      SctID[NInt] = event->Summary()->ProcInfoPtr()->ScatteringTypeId();
+      IntID[NInt] = event->Summary()->ProcInfoPtr()->InteractionTypeId();
+      Tgt[NInt]   = ( event->TargetNucleus() ) ? event->TargetNucleus()->Pdg() : event->HitNucleon()->Pdg();
+      Nu[NInt]    = event->Probe()->Pdg();
+
       const TLorentzVector & X4  = *event->Vertex();
       const TLorentzVector & P4  = *event->Probe()->P4();
 
       // print-out
       LOG("ComputeAttenuation", pDEBUG) << "Neutrino interaction!!!";
-      LOG("ComputeAttenuation", pDEBUG) << "@@Interact   = "   << sctid << "   " << intid;
-      LOG("ComputeAttenuation", pDEBUG) << "@@Probe      = "   << nupdg << " , E =" << P4.E();
+      LOG("ComputeAttenuation", pDEBUG) << "@@Interact   = "   << SctID[NInt] << "   " << IntID[NInt];
+      LOG("ComputeAttenuation", pDEBUG) << "@@Target     = "   << Tgt[NInt];
+      LOG("ComputeAttenuation", pDEBUG) << "@@Probe      = "   << Nu[NInt] << " , E =" << P4.E();
       LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << X4.X() << " , " << X4.Y() << " , " << X4.Z() << " , " << X4.T() << " ]";
       LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << P4.Px()/P4.E() << " , " << P4.Py()/P4.E() << " , " << P4.Pz()/P4.E() << " ]";
-      LOG("ComputeAttenuation", pDEBUG) << "@@Target     = "   << tgt;
       LOG("ComputeAttenuation", pDEBUG) << *event;
-
-      SctID[NInt]     = sctid;
-      IntID[NInt]     = intid;
-      Nu_pdg[NInt]    = nupdg;
-      Tgt_pdg[NInt]   = tgt;
-      Nu_X4[NInt][0]  = X4.X();  Nu_X4[NInt][1] = X4.Y();  Nu_X4[NInt][2] = X4.Z();  Nu_X4[NInt][3] = X4.T(); 
-      Nu_P4[NInt][0]  = P4.Px(); Nu_P4[NInt][1] = P4.Py(); Nu_P4[NInt][2] = P4.Pz(); Nu_P4[NInt][3] = P4.E(); 
       
-      if (intid==2) NIntCC++;
-      else          NIntNC++;
+      if (IntID[NInt]==2) NIntCC++;
+      else                NIntNC++;
       NInt++;
 
-      int    SecNu_Pdg = 0;
-      double SecNu_E = -1.; //setting energy to avoid problems when looping 
-      double SecNu_Pos[4] = { 0, 0, 0, 0 };
-      double SecNu_Mom[3] = { 0, 0, 0 };
-      
-      if (TMath::Abs(nupdg)==16 && intid==2) {
+      GHepParticle * p = 0;
+      TObjArrayIter piter(event);
 
-        TObjArrayIter piter(event);
-        GHepParticle * p = 0;
-        while ( (p=(GHepParticle *)piter.Next()) ) {
-          if ( TMath::Abs(p->Pdg())!=15 ) continue; //we want the outgoing tau
-          if ( p->Status()!=1           ) continue; //not final state
-          if ( p->FirstMother()!=0      ) continue; 
-
-          if (gOptEnableEnergyLoss) {
-            double vxi = p->Vx()*1e-13; //from fm(genie) to cm(tausic)
-            double vyi = p->Vy()*1e-13;
-            double vzi = p->Vz()*1e-13;
-            double ti  = p->Vt()*1e9; //from s(genie) to ns(tausic)
-
-            const TLorentzVector & P4tau  = *p->P4();
-            double dxi = P4tau.Px()/P4tau.P();
-            double dyi = P4tau.Py()/P4tau.P();
-            double dzi = P4tau.Pz()/P4tau.P();
-            double Ei  = TMath::Sqrt( P4tau.P()*P4tau.P() + mtau*mtau );
-
-            double depthi = 0.;
-            std::vector< std::pair<double, const TGeoMaterial*> > MatLengths = geom_driver->ComputeMatLengths(X4,P4tau);
-            for ( auto sitr = MatLengths.begin(); sitr != MatLengths.end(); ++sitr) {
-              double length            = sitr->first * 1e2;  //from m(geom) to cm(tausic)
-              const  TGeoMaterial* mat = sitr->second;
-              double rho               = mat->GetDensity();
-              depthi += length*rho;
-            }
-            depthi = depthi/RHOR;
-            LOG("ComputeAttenuation", pDEBUG) << "PathLength = " << depthi << " cm r.e." ;
-
-            double vxf,vyf,vzf,tf;
-            double dxf,dyf,dzf,Ef;
-            double depthf; //total distance travel after propagation
-
-            int idec; //decay flag (0=not decay // >0=decay)
-            double tauti,tautf; //dummy only used when ITFLAG!=0
-
-            LOG("ComputeAttenuation", pDEBUG) << "Before -> X4 = " << vxi << "  " << vyi << "  " << vzi << "  " << ti;
-            LOG("ComputeAttenuation", pDEBUG) << "Before -> P4 = " << dxi << "  " << dyi << "  " << dzi << "  " << Ei;
-
-            tau_transport_sr_(&vxi,&vyi,&vzi,&dxi,&dyi,&dzi,&Ei,&depthi,&ti,&RHOR,&TAUMODEL,&TAUMODEL,&vxf,&vyf,&vzf,&dxf,&dyf,&dzf,&Ef,&depthf,&tf,&idec,&ITFLAG,&tauti,&tautf);
-
-            LOG("ComputeAttenuation", pDEBUG) << "After -> X4 = " << vxf/100. << "  " << vyf/100. << "  " << vzf/100. << "  " << tf/1e9;
-            LOG("ComputeAttenuation", pDEBUG) << "After -> P4 = " << dxf << "  " << dyf << "  " << dzf << "  " << Ef;
-
-            if (idec>0) {
-              double momf = TMath::Sqrt( Ef*Ef - mtau*mtau );
-              TauolaHEPEVTEvent * Tauola_evt = new TauolaHEPEVTEvent();
-              TauolaHEPEVTParticle *Tauola_tau = new TauolaHEPEVTParticle( p->Pdg(), 1, dxf*momf, dyf*momf, dzf*momf, Ef, mtau, -1, -1, -1, -1 );
-              Tauola_evt->addParticle(Tauola_tau);
-              double pol = 1; //tau-(P=-1) & tau+(P=-1) however in tauola its is fliped
-              Tauola::decayOne(Tauola_tau,true,0.,0.,pol);
-              SecNu_Pdg    = Tauola_evt->getParticle(1)->getPdgID();
-              SecNu_Mom[0] = Tauola_evt->getParticle(1)->getPx(); SecNu_Mom[1] = Tauola_evt->getParticle(1)->getPy(); SecNu_Mom[2] = Tauola_evt->getParticle(1)->getPz(); 
-              SecNu_E      = Tauola_evt->getParticle(1)->getE();
-              SecNu_Pos[0] = vxf/100.; //from cm (tausic) to m
-              SecNu_Pos[1] = vyf/100.;
-              SecNu_Pos[2] = vzf/100.;
-              SecNu_Pos[3] = tf/1e9; //from ns (tausic) to s
-              delete Tauola_evt;
-              break;
-            }
-            else {
-              LOG("ComputeAttenuation", pWARN) << "Tau did not decay!!!";
-              LOG("ComputeAttenuation", pWARN) << "  Eneryi      = " << Ei;
-              LOG("ComputeAttenuation", pWARN) << "  Positioni   = [ " << X4.X() << " , " << X4.Y() << " , " << X4.Z() << " , " << X4.T() << " ]";
-              LOG("ComputeAttenuation", pWARN) << "  Directioni  = [ " << dxi << " , " << dyi << " , " << dzi << " ]";
-              LOG("ComputeAttenuation", pWARN) << "  PathLength = " << depthi << " cm r.e." ;
-              LOG("ComputeAttenuation", pWARN) << "  Eneryf      = " << Ef;
-              LOG("ComputeAttenuation", pWARN) << "  Positionf   = [ " << vxf/100. << " , " << vyf/100. << " , " << vzf/100. << " , " << tf/1e9 << " ]";
-              LOG("ComputeAttenuation", pWARN) << "  Directionf  = [ " << dxf << " , " << dyf << " , " << dzf << " ]";
-            }
-
-          }
-          else {
-
-            //decay tau
-            TauolaHEPEVTEvent * Tauola_evt = new TauolaHEPEVTEvent();
-            double Etau = TMath::Sqrt( p->Px()*p->Px()+p->Py()*p->Py()+p->Pz()*p->Pz() + mtau*mtau ); //use this energy to avoid energy conservation in tauola
-            TauolaHEPEVTParticle *Tauola_tau = new TauolaHEPEVTParticle( p->Pdg(), 1, p->Px(), p->Py(), p->Pz(), Etau, mtau, -1, -1, -1, -1 );
-            Tauola_evt->addParticle(Tauola_tau);
-            double pol = 1; //tau-(P=-1) & tau+(P=-1) however in tauola its is fliped
-            Tauola::decayOne(Tauola_tau,true,0.,0.,pol);
-            SecNu_Pdg    = Tauola_evt->getParticle(1)->getPdgID();
-            SecNu_Mom[0] = Tauola_evt->getParticle(1)->getPx(); SecNu_Mom[1] = Tauola_evt->getParticle(1)->getPy(); SecNu_Mom[2] = Tauola_evt->getParticle(1)->getPz(); 
-            SecNu_E      = Tauola_evt->getParticle(1)->getE();
-            // position based on lifetime
-            double d_r = (gOptEnableDecayLength) ? -TMath::Log( rnd->RndGen().Rndm() ) * d_lifetime : 0; //m
-            SecNu_Pos[0] = p->Vx()*1e-15 + p->Px()*d_r/mtau; // initial position of tau wrt vertex changing from fm(genie) to m
-            SecNu_Pos[1] = p->Vy()*1e-15 + p->Py()*d_r/mtau;
-            SecNu_Pos[2] = p->Vz()*1e-15 + p->Pz()*d_r/mtau;
-            SecNu_Pos[3] = p->Vt()       + Etau   *d_r/mtau/cSpeed;
-            delete Tauola_evt;
-            break;
-
-          }
-
-
+      while ( (p=(GHepParticle *)piter.Next()) ) {
+        if ( pdg::IsNeutrino(TMath::Abs(p->Pdg())) && p->Status() && p->E()>gOptEmin ) {
+          p->SetEnergy( TMath::Sqrt(p->Px()*p->Px()+p->Py()*p->Py()+p->Pz()*p->Pz()) ); //not using E to avoid problems with neutrinos from pythia not on shell
+          p->SetPosition( X4.X()+p->Vx()*1e-15, X4.Y()+p->Vy()*1e-15, X4.Z()+p->Vz()*1e-15, X4.T()+p->Vt() ); //position -> passing from fm [genie] to m
+          SecNu.push_back(*p);
         }
-
-      }
-      else {
-        TObjArrayIter piter(event);
-        GHepParticle * p = 0;
-        int mother = (intid==3) ? 0 : 4; //NC(CC): the outgoing neutrino is the daughter of the incoming neutrino (resonance W boson)
-        while ( (p=(GHepParticle *)piter.Next()) ) {
-          if ( p->Pdg()!=nupdg          ) continue; //we do not want flavor change
-          if ( p->Status()!=1           ) continue; //not final state
-          if ( p->FirstMother()!=mother ) continue; 
-          SecNu_Pdg    = p->Pdg();
-          SecNu_Mom[0] = p->Px(); SecNu_Mom[1] = p->Py(); SecNu_Mom[2] = p->Pz(); 
-          SecNu_E      = TMath::Sqrt(p->Px()*p->Px()+p->Py()*p->Py()+p->Pz()*p->Pz()); //not using E to avoid problems with neutrinos from pythia not on shell
-          //position -> passing from fm [genie] to m
-          SecNu_Pos[0] = p->Vx()*1e-15; SecNu_Pos[1] = p->Vy()*1e-15; SecNu_Pos[2] = p->Vz()*1e-15; SecNu_Pos[3] = p->Vt(); 
-          break;
+        else if ( pdg::IsTau(TMath::Abs(p->Pdg())) && p->Status() ) {
+          p->SetEnergy( TMath::Sqrt(p->Px()*p->Px()+p->Py()*p->Py()+p->Pz()*p->Pz()+mtau*mtau) ); //use this energy to avoid energy conservation in tauola
+          p->SetPosition( X4.X()+p->Vx()*1e-15, X4.Y()+p->Vy()*1e-15, X4.Z()+p->Vz()*1e-15, X4.T()+p->Vt() ); //position -> passing from fm [genie] to m
+          vector<GHepParticle> Prod = DecayTau(p);
+          for (int i=0; i<Prod.size(); i++) SecNu.push_back(Prod[i]);
         }
       }
+
       delete event;
 
-      if ( SecNu_Pdg!=0 && SecNu_E>gOptEmin ) {
-        LOG("ComputeAttenuation", pDEBUG) << "@@SecNu      = "   << SecNu_Pdg << " , E = " << SecNu_E;
-        LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << SecNu_Pos[0] << " , " << SecNu_Pos[1] << " , " << SecNu_Pos[2] << " , " << SecNu_Pos[3] << " ]";
-        LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << SecNu_Mom[0]/SecNu_E << " , " << SecNu_Mom[1]/SecNu_E << " , " << SecNu_Mom[2]/SecNu_E << " ]";
-        flx_driver->InitNeutrino(SecNu_Mom[0],SecNu_Mom[1],SecNu_Mom[2],SecNu_E,SecNu_Pos[0],SecNu_Pos[1],SecNu_Pos[2],SecNu_Pos[3],SecNu_Pdg,X4);
-        continue;
-      } 
+      if ( SecNu.size()>0 ) continue;
 
       LOG("ComputeAttenuation", pDEBUG) << " ----> Absorbed by the Earth";
-      Nu_Out    = 0;
-      P4_Out[0] = 0; P4_Out[1] = 0; P4_Out[2] = 0; P4_Out[3] = 0;
-      X4_Out[0] = 0; X4_Out[1] = 0; X4_Out[2] = 0; X4_Out[3] = 0;
+      Nu_Out->SetPdgCode(0);
+      Nu_Out->SetMomentum(0,0,0,0);
+      Nu_Out->SetPosition(0,0,0,0);
 
     }
     else {
       LOG("ComputeAttenuation", pDEBUG) << " ----> Goodbye Earth!!!";
-      P4_Out[0] = flx_driver->GetP4I().Px(); P4_Out[1] = flx_driver->GetP4I().Py(); P4_Out[2] = flx_driver->GetP4I().Pz(); P4_Out[3] = flx_driver->GetP4I().E();
-      X4_Out[0] = flx_driver->GetX4I().X(); X4_Out[1] = flx_driver->GetX4I().Y(); X4_Out[2] = flx_driver->GetX4I().Z(); X4_Out[3] = flx_driver->GetX4I().T();
-      Nu_Out = (P4_Out[3]==P4_In[3] && X4_Out[2]==X4_In[2]) ? 1 : flx_driver->GetPdgI();     
+      Nu_Out = flx_driver->GetNeutrino();
     }
 
-    outtree->Fill();   
+    FillNeutrino(Nu_Out,NuOut_Pdg,NuOut_P4[0],NuOut_P4[1],NuOut_P4[2],NuOut_P4[3],NuOut_X4[0],NuOut_X4[1],NuOut_X4[2],NuOut_X4[3]);
+    outflux->Fill();
 
-    NInt = 0;
-    NIntCC = 0;
-    NIntNC = 0;
-    NNu++;
+    if ( SecNu.size()==0 ) {
+      NInt = 0;
+      NIntCC = 0;
+      NIntNC = 0;
+      NNu++;
+    }
 
   } 
 
-  outtree->Write();
+  influx->Write();
+  outflux->Write();
   outfile->Close();
 
   // clean-up
@@ -427,6 +328,123 @@ int main(int argc, char** argv)
   system("rm tausic*.dat");
 
   return 0;
+}
+
+//**************************************************************************
+//**************************************************************************
+//THIS FUNCTION DECAY TAUS
+//**************************************************************************
+//**************************************************************************
+
+vector<GHepParticle> DecayTau(GHepParticle * tau) {
+
+  int pdgi = tau->Pdg();
+
+  double vxi = tau->Vx()*1e-13; //from fm(genie) to cm(tausic)
+  double vyi = tau->Vy()*1e-13;
+  double vzi = tau->Vz()*1e-13;
+  double ti  = tau->Vt()*1e9; //from s(genie) to ns(tausic)
+
+  double momi = tau->P4()->P();
+  double dxi  = tau->Px()/momi;
+  double dyi  = tau->Py()/momi;
+  double dzi  = tau->Pz()/momi;
+  double ei   = TMath::Sqrt( momi*momi + mtau*mtau );
+  
+  LOG("ComputeAttenuation", pDEBUG) << "Before decay: " << pdgi << ", E = " << ei;
+  LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << vxi << " , " << vyi << " , " << vzi << " , " << ti << " ]";
+  LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << dxi << " , " << dyi << " , " << dzi << " ]";
+
+  int idec; //decay flag (0=not decay // >0=decay)
+  double vxf,vyf,vyf,tf; //position after propagation in meters
+  double dxf,dyf,dyf,ef; //direction after propagation
+
+  if (gOptEnableEnergyLoss) {
+
+    double depthi = 0.;
+    std::vector< std::pair<double, const TGeoMaterial*> > MatLengths = geom_driver->ComputeMatLengths(X4,P4tau);
+    for ( auto sitr = MatLengths.begin(); sitr != MatLengths.end(); ++sitr) {
+      double length            = sitr->first * 1e2;  //from m(geom) to cm(tausic)
+      const  TGeoMaterial* mat = sitr->second;
+      double rho               = mat->GetDensity();
+      depthi += length*rho;
+    }
+    depthi = depthi/RHOR;
+    LOG("ComputeAttenuation", pDEBUG) << "PathLength = " << depthi << " cm r.e." ;
+
+    double tauti,tautf; //dummy only used when ITFLAG!=0
+    double depthf; //total distance travel after propagation
+
+    tau_transport_sr_(&vxi,&vyi,&vzi,&dxi,&dyi,&dzi,&ei,&depthi,&ti,&RHOR,&TAUMODEL,&TAUMODEL,&vxf,&vyf,&vzf,&dxf,&dyf,&dzf,&ef,&depthf,&tf,&idec,&ITFLAG,&tauti,&tautf);
+
+  }
+  else {
+
+    idec = 1;
+    dxf = dxi;
+    dyf = dyi;
+    dzf = dzi;
+    ef  = ef;
+
+    // position based on lifetime
+    RandomGen * rnd = RandomGen::Instance();
+    double d_r = (gOptEnableDecayLength) ? -TMath::Log( rnd->RndGen().Rndm() ) * d_lifetime : 0;
+    vxf = vxi + d_r*dxi*momi/mtau;
+    vyf = vyi + d_r*dyi*momi/mtau;
+    vzf = vzi + d_r*dzi*momi/mtau;
+    tf  =  ti + d_r*ei/mtau/cSpeed;
+
+  }
+
+  LOG("ComputeAttenuation", pDEBUG) << "Before decay: " << pdgf << ", E = " << ef;
+  LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << vxf << " , " << vyf << " , " << vzf << " , " << tf << " ]";
+  LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << dxf << " , " << dyf << " , " << dzf << " ]";
+
+
+  vector<GHepParticle> Prod;
+
+  if (idec>0) {
+
+    double momf = TMath::Sqrt( ef*ef - mtau*mtau );
+
+    //decay tau
+    TauolaHEPEVTEvent * Tauola_evt = new TauolaHEPEVTEvent();
+    TauolaHEPEVTParticle *Tauola_tau = new TauolaHEPEVTParticle( pdgi, 1, dxf*momf, dyf*momf, dzf*momf, ef, mtau, -1, -1, -1, -1 );
+    Tauola_evt->addParticle(Tauola_tau);
+    double pol = 1; //tau-(P=-1) & tau+(P=-1) however in tauola its is fliped
+    Tauola::decayOne(Tauola_tau,true,0.,0.,pol);
+
+    for ( int sec=1; sec<Tauola_evt->getParticleCount(); sec++ ) {
+      int spdg   = Tauola_evt->getParticle(sec)->getPdgID();
+      double se  = Tauola_evt->getParticle(sec)->getE();
+      if ( pdg::IsNeutrino(TMath::Abs(pdg)) && e>gOptEmin ) {
+        double spx = Tauola_evt->getParticle(sec)->getPx();
+        double spy = Tauola_evt->getParticle(sec)->getPy();
+        double spz = Tauola_evt->getParticle(sec)->getPz();
+        LOG("ComputeAttenuation", pDEBUG) << "Product: " << spdg << ", E = " << se;
+        LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << vxf << " , " << vyf << " , " << vzf << " , " << tf << " ]";
+        LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << spx/se << " , " << spy/se << " , " << spz/se << " ]";
+        Prod.push_back(GHepParticle(spdg,kIStUndefined,-1,-1,-1,-1,spx,spy,spz,se,vxf/100.,vyf/100.,vzf/100.,tf/1e9));
+      }
+    }
+
+    delete Tauola_evt;
+
+  }
+  else {
+
+      LOG("ComputeAttenuation", pWARN) << "Tau did not decay!!!";
+      LOG("ComputeAttenuation", pWARN) << "  Energyi     = " << ei;
+      LOG("ComputeAttenuation", pWARN) << "  Positioni   = [ " << vxi << " , " << vyi << " , " << vzi << " , " << ti << " ]";
+      LOG("ComputeAttenuation", pWARN) << "  Directioni  = [ " << dxi << " , " << dyi << " , " << dzi << " ]";
+      LOG("ComputeAttenuation", pWARN) << "  Energyf     = " << ef;
+      LOG("ComputeAttenuation", pWARN) << "  Positionf   = [ " << vxf << " , " << vyf << " , " << vzf << " , " << tf << " ]";
+      LOG("ComputeAttenuation", pWARN) << "  Directionf  = [ " << dxf << " , " << dyf << " , " << dzf << " ]";    
+
+  }
+
+  return Prod;
+
 }
 
 //**************************************************************************

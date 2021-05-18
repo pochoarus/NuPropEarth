@@ -68,8 +68,8 @@ double RHOR = 2.65; //rock density
 
 //TAUOLA varible
 double d_lifetime = Tauola::tau_lifetime * 1e-1; //lifetime from mm(tauola) to cm
-double mtau = Tauola::getTauMass();
 double cSpeed = constants::kLightSpeed/(units::centimeter/units::nanosecond);
+double mtau; //loaded once tauola is initialised
 
 //functions
 void GetCommandLineArgs (int argc, char ** argv);
@@ -79,7 +79,7 @@ void FillNeutrino       (GHepParticle * nu, int &pdg, double &px, double &py,dou
   px  = nu->Px(); py = nu->Py(); pz = nu->Pz(); e = nu->E();
   vx  = nu->Vx(); vy = nu->Vy(); vz = nu->Vz(); t = nu->Vt();
 }
-vector<GHepParticle> DecayTau (GHepParticle * tau, GeomAnalyzerI * geom_driver);
+vector<GHepParticle> DecayTau (GHepParticle * tau);
 
 
 // User-specified options:
@@ -101,6 +101,9 @@ double          gOptHeight = 0.; //Detector height (height of the cylinder cente
 bool            gOptEnableEnergyLoss  = false;
 bool            gOptEnableDecayLength = false;
 
+
+RandomGen * rnd;
+GeomAnalyzerI * geom_driver;
 
 
 const int NMAXINT = 100;
@@ -134,7 +137,7 @@ int main(int argc, char** argv)
   }
   LOG("ComputeAttenuation", pNOTICE) << topvol->GetName();
 
-  GeomAnalyzerI * geom_driver = dynamic_cast<GeomAnalyzerI *> (rgeom);
+  geom_driver = dynamic_cast<GeomAnalyzerI *> (rgeom);
 
   LOG("ComputeAttenuation", pDEBUG) << "Creating GFluxI...";
   IncomingFlux * flx_driver = new IncomingFlux(gOptPdg, gOptAlpha, gOptCthmin, gOptCthmax, gOptCthmono, gOptEmin, gOptEmax, gOptEmono,gOptDepth,gOptRadius,gOptHeight);
@@ -160,6 +163,7 @@ int main(int argc, char** argv)
 
   LOG("ComputeAttenuation", pDEBUG) << "Initializing TAUOLA...";
   Tauola::initialize();
+  mtau = Tauola::getTauMass(); //use this mass to avoid energy conservation warning in tauola
 
   LOG("ComputeAttenuation", pDEBUG) << "Initializing TAUSIC...";
   string tausicpath = gSystem->Getenv("TAUSIC");
@@ -169,7 +173,7 @@ int main(int argc, char** argv)
   initialize_tausic_sr_(&TAUIN);
 
   LOG("ComputeAttenuation", pDEBUG) << "Initializing Random...";
-  RandomGen * rnd = RandomGen::Instance();
+  rnd = RandomGen::Instance();
 
   LOG("ComputeAttenuation", pINFO) << "Creating output name";
   string OutEvFile = gOptOutDir + "/NuEarthProp_" + RunOpt::Instance()->Tune()->Name() + Form("_nu%d",gOptPdg);
@@ -277,13 +281,13 @@ int main(int argc, char** argv)
       while ( (p=(GHepParticle *)piter.Next()) ) {
         if ( pdg::IsNeutrino(TMath::Abs(p->Pdg())) && p->Status() && p->E()>gOptEmin ) {
           p->SetEnergy( TMath::Sqrt(p->Px()*p->Px()+p->Py()*p->Py()+p->Pz()*p->Pz()) ); //not using E to avoid problems with neutrinos from pythia not on shell
-          p->SetPosition( X4.X()+p->Vx()*1e-15, X4.Y()+p->Vy()*1e-15, X4.Z()+p->Vz()*1e-15, X4.T()+p->Vt() ); //position -> passing from fm [genie] to m
+          p->SetPosition( X4.X()+p->Vx()*1e-15, X4.Y()+p->Vy()*1e-15, X4.Z()+p->Vz()*1e-15, X4.T()+p->Vt() ); //position -> passing from fm(genie) to m(geom)
           SecNu.push_back(*p);
         }
         else if ( pdg::IsTau(TMath::Abs(p->Pdg())) && p->Status() ) {
           p->SetEnergy( TMath::Sqrt(p->Px()*p->Px()+p->Py()*p->Py()+p->Pz()*p->Pz()+mtau*mtau) ); //use this energy to avoid energy conservation in tauola
-          p->SetPosition( X4.X()+p->Vx()*1e-15, X4.Y()+p->Vy()*1e-15, X4.Z()+p->Vz()*1e-15, X4.T()+p->Vt() ); //position -> passing from fm [genie] to m
-          vector<GHepParticle> Prod = DecayTau(p,geom_driver);
+          p->SetPosition( X4.X()+p->Vx()*1e-15, X4.Y()+p->Vy()*1e-15, X4.Z()+p->Vz()*1e-15, X4.T()+p->Vt() ); //position -> passing from fm(genie) to m(geom)
+          vector<GHepParticle> Prod = DecayTau(p);
           for (int i=0; i<Prod.size(); i++) SecNu.push_back(Prod[i]);
         }
       }
@@ -336,14 +340,14 @@ int main(int argc, char** argv)
 //**************************************************************************
 //**************************************************************************
 
-vector<GHepParticle> DecayTau(GHepParticle * tau, GeomAnalyzerI * geom_driver) {
+vector<GHepParticle> DecayTau(GHepParticle * tau) {
 
   int pdgi = tau->Pdg();
 
-  double vxi = tau->Vx()*1e-13; //from fm(genie) to cm(tausic)
-  double vyi = tau->Vy()*1e-13;
-  double vzi = tau->Vz()*1e-13;
-  double ti  = tau->Vt()*1e9; //from s(genie) to ns(tausic)
+  double vxi = tau->Vx()*1e2; //from m(geom) to cm(tausic)
+  double vyi = tau->Vy()*1e2;
+  double vzi = tau->Vz()*1e2;
+  double ti  = tau->Vt()*1e9; //from s(geom) to ns(tausic)
 
   double momi = tau->P4()->P();
   double dxi  = tau->Px()/momi;
@@ -356,7 +360,7 @@ vector<GHepParticle> DecayTau(GHepParticle * tau, GeomAnalyzerI * geom_driver) {
   LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << dxi << " , " << dyi << " , " << dzi << " ]";
 
   int idec; //decay flag (0=not decay // >0=decay)
-  double vxf,vyf,vzf,tf; //position after propagation in meters
+  double vxf,vyf,vzf,tf; //position after propagation in cm/ns
   double dxf,dyf,dzf,ef; //direction after propagation
 
   if (gOptEnableEnergyLoss) {
@@ -386,10 +390,9 @@ vector<GHepParticle> DecayTau(GHepParticle * tau, GeomAnalyzerI * geom_driver) {
     dxf = dxi;
     dyf = dyi;
     dzf = dzi;
-    ef  = ef;
+    ef  = ei;
 
     // position based on lifetime
-    RandomGen * rnd = RandomGen::Instance();
     double d_r = (gOptEnableDecayLength) ? -TMath::Log( rnd->RndGen().Rndm() ) * d_lifetime : 0;
     vxf = vxi + d_r*dxi*momi/mtau;
     vyf = vyi + d_r*dyi*momi/mtau;
@@ -398,7 +401,7 @@ vector<GHepParticle> DecayTau(GHepParticle * tau, GeomAnalyzerI * geom_driver) {
 
   }
 
-  LOG("ComputeAttenuation", pDEBUG) << "Before decay: " << pdgi << ", E = " << ef;
+  LOG("ComputeAttenuation", pDEBUG) << "After decay: " << pdgi << ", E = " << ef;
   LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << vxf << " , " << vyf << " , " << vzf << " , " << tf << " ]";
   LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << dxf << " , " << dyf << " , " << dzf << " ]";
 
@@ -426,7 +429,7 @@ vector<GHepParticle> DecayTau(GHepParticle * tau, GeomAnalyzerI * geom_driver) {
         LOG("ComputeAttenuation", pDEBUG) << "Product: " << spdg << ", E = " << se;
         LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << vxf << " , " << vyf << " , " << vzf << " , " << tf << " ]";
         LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << spx/se << " , " << spy/se << " , " << spz/se << " ]";
-        Prod.push_back(GHepParticle(spdg,kIStUndefined,-1,-1,-1,-1,spx,spy,spz,se,vxf/100.,vyf/100.,vzf/100.,tf/1e9));
+        Prod.push_back(GHepParticle(spdg,kIStUndefined,-1,-1,-1,-1,spx,spy,spz,se,vxf*1e-2,vyf*1e-2,vzf*1e-2,tf*1e-9));  //from cm/ns(tausic) to m/s(geom)
       }
     }
 

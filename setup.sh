@@ -2,7 +2,7 @@
 # setup root
 #----------------------------------------------------------
 
-export ROOTSYS=/path/to/your/favourite/ROOT6
+export ROOTSYS=/path/to/directory/where/ROOT6/is/installed
 export LD_LIBRARY_PATH=$ROOTSYS/lib:$LD_LIBRARY_PATH
 
 #----------------------------------------------------------
@@ -10,22 +10,22 @@ export LD_LIBRARY_PATH=$ROOTSYS/lib:$LD_LIBRARY_PATH
 #----------------------------------------------------------
 
 #genie                                                                                                                                                                        
-export GENIE=/path/to/directory/were/you/want/to/install/GENIE
+export GENIE=/path/to/directory/where/GENIE/is/installed
 export PATH=$GENIE/bin:$PATH
 export LD_LIBRARY_PATH=$GENIE/lib:$LD_LIBRARY_PATH
 
 #pythia
-export PYTHIA6=/path/to/directory/were/PYTHIA6/is/installed
+export PYTHIA6=/path/to/directory/where/PYTHIA6/is/installed
 export LD_LIBRARY_PATH=$PYTHIA6:$LD_LIBRARY_PATH
 
 #lhapdf                                                                                                               
-export LHAPDF=/path/to/directory/were/LHAPDF6/is/installed
+export LHAPDF=/path/to/directory/where/LHAPDF6/is/installed
 export LHAPATH=${GENIE}/data/evgen/pdfs
 export PATH=$LHAPDF/bin:$PATH
 export LD_LIBRARY_PATH=$LHAPDF/lib:$LD_LIBRARY_PATH
 
 #apfel (not mandatory)
-export APFEL=/path/to/directory/were/apfel/is/installed
+export APFEL=/path/to/directory/where/apfel/is/installed
 export LD_LIBRARY_PATH=$APFEL/lib:$LD_LIBRARY_PATH
 
 #----------------------------------------------------------
@@ -33,19 +33,21 @@ export LD_LIBRARY_PATH=$APFEL/lib:$LD_LIBRARY_PATH
 #----------------------------------------------------------
 
 #TAUOLA
-export TAUOLA=/path/to/directory/were/tauola/is/installed
+export TAUOLA=/path/to/directory/where/tauola/is/installed
 export LD_LIBRARY_PATH=$TAUOLA/lib:$LD_LIBRARY_PATH
 
 #TAUSIC
-export TAUSIC=/path/to/directory/were/tausic/is/installed
+export TAUSIC=/path/to/directory/where/tausic/is/installed
 
 #cern
 export CERN_LEVEL=/version/of/cernlib
-export CERN=/path/to/directory/were/cernlib/is/installed
+export CERN=/path/to/directory/where/cernlib/is/installed
 export CERN_ROOT=$CERN/$CERN_LEVEL
 export PATH=$CERN_ROOT/bin:$PATH
 
 #nuearthprop
-export NUPROPEARTH=${PWD}
+export NUPROPEARTH=/path/to/directory/where/nupropearth/is/installed
 export PATH=$NUPROPEARTH/bin:$PATH
 export LD_LIBRARY_PATH=$NUPROPEARTH/lib:$LD_LIBRARY_PATH
+export GXMLPATH=$NUPROPEARTH
+

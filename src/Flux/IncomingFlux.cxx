@@ -125,10 +125,10 @@ bool IncomingFlux::GenerateNext_1try(void)
       double randY = randR*TMath::Sin(randAlpha);
       
       if (dz < 0) {
-        fgX4I.SetXYZT    ( randX,  randY, -fREarth_m + fDepth - fHeight*0.5, 0. ); // Event at the top of the cylinder
+        fNeutrino->SetPosition( randX,  randY, -fREarth_m + fDepth - fHeight*0.5, 0. ); // Event at the top of the cylinder
       }
       else {
-        fgX4I.SetXYZT    ( randX,  randY, -fREarth_m + fDepth + fHeight*0.5, 0. ); // Event on the bottom of the cylinder
+        fNeutrino->SetPosition( randX,  randY, -fREarth_m + fDepth + fHeight*0.5, 0. ); // Event on the bottom of the cylinder
       }  
     }
     else {

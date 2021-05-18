@@ -3,7 +3,7 @@
 #----------------------------------------------------------
 
 export ROOTSYS=/path/to/your/favourite/ROOT6
-source $ROOTSYS/bin/thisroot.sh
+export LD_LIBRARY_PATH=$ROOTSYS/lib:$LD_LIBRARY_PATH
 
 #----------------------------------------------------------
 # setup genie3 (w/ hedis)
@@ -24,7 +24,7 @@ export LHAPATH=${GENIE}/data/evgen/pdfs
 export PATH=$LHAPDF/bin:$PATH
 export LD_LIBRARY_PATH=$LHAPDF/lib:$LD_LIBRARY_PATH
 
-#apfel
+#apfel (not mandatory)
 export APFEL=/path/to/directory/were/apfel/is/installed
 export LD_LIBRARY_PATH=$APFEL/lib:$LD_LIBRARY_PATH
 
@@ -40,7 +40,10 @@ export LD_LIBRARY_PATH=$TAUOLA/lib:$LD_LIBRARY_PATH
 export TAUSIC=/path/to/directory/were/tausic/is/installed
 
 #cern
+export CERN_LEVEL=/version/of/cernlib
 export CERN=/path/to/directory/were/cernlib/is/installed
+export CERN_ROOT=$CERN/$CERN_LEVEL
+export PATH=$CERN_ROOT/bin:$PATH
 
 #nuearthprop
 export NUPROPEARTH=${PWD}

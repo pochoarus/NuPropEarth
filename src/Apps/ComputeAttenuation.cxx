@@ -79,12 +79,12 @@ void FillNeutrino       (GHepParticle * nu, int &pdg, double &px, double &py,dou
   px  = nu->Px(); py = nu->Py(); pz = nu->Pz(); e = nu->E();
   vx  = nu->Vx(); vy = nu->Vy(); vz = nu->Vz(); t = nu->Vt();
 }
-vector<GHepParticle> DecayTau (GHepParticle * tau);
+vector<GHepParticle> DecayTau (GHepParticle * tau, GeomAnalyzerI * geom_driver);
 
 
 // User-specified options:
 string          gOptOutDir = "./";               
-long int        gOptRanSeed;               
+int             gOptRanSeed;               
 string          gOptInpXSecFile;           
 int             gOptNev;              
 int             gOptPdg = -1; //all flavors                   
@@ -283,7 +283,7 @@ int main(int argc, char** argv)
         else if ( pdg::IsTau(TMath::Abs(p->Pdg())) && p->Status() ) {
           p->SetEnergy( TMath::Sqrt(p->Px()*p->Px()+p->Py()*p->Py()+p->Pz()*p->Pz()+mtau*mtau) ); //use this energy to avoid energy conservation in tauola
           p->SetPosition( X4.X()+p->Vx()*1e-15, X4.Y()+p->Vy()*1e-15, X4.Z()+p->Vz()*1e-15, X4.T()+p->Vt() ); //position -> passing from fm [genie] to m
-          vector<GHepParticle> Prod = DecayTau(p);
+          vector<GHepParticle> Prod = DecayTau(p,geom_driver);
           for (int i=0; i<Prod.size(); i++) SecNu.push_back(Prod[i]);
         }
       }
@@ -336,7 +336,7 @@ int main(int argc, char** argv)
 //**************************************************************************
 //**************************************************************************
 
-vector<GHepParticle> DecayTau(GHepParticle * tau) {
+vector<GHepParticle> DecayTau(GHepParticle * tau, GeomAnalyzerI * geom_driver) {
 
   int pdgi = tau->Pdg();
 
@@ -356,13 +356,15 @@ vector<GHepParticle> DecayTau(GHepParticle * tau) {
   LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << dxi << " , " << dyi << " , " << dzi << " ]";
 
   int idec; //decay flag (0=not decay // >0=decay)
-  double vxf,vyf,vyf,tf; //position after propagation in meters
-  double dxf,dyf,dyf,ef; //direction after propagation
+  double vxf,vyf,vzf,tf; //position after propagation in meters
+  double dxf,dyf,dzf,ef; //direction after propagation
 
   if (gOptEnableEnergyLoss) {
 
     double depthi = 0.;
-    std::vector< std::pair<double, const TGeoMaterial*> > MatLengths = geom_driver->ComputeMatLengths(X4,P4tau);
+    const TLorentzVector & P4tau  = *tau->P4();
+    const TLorentzVector & X4tau  = *tau->X4();
+    std::vector< std::pair<double, const TGeoMaterial*> > MatLengths = geom_driver->ComputeMatLengths(X4tau,P4tau);
     for ( auto sitr = MatLengths.begin(); sitr != MatLengths.end(); ++sitr) {
       double length            = sitr->first * 1e2;  //from m(geom) to cm(tausic)
       const  TGeoMaterial* mat = sitr->second;
@@ -396,7 +398,7 @@ vector<GHepParticle> DecayTau(GHepParticle * tau) {
 
   }
 
-  LOG("ComputeAttenuation", pDEBUG) << "Before decay: " << pdgf << ", E = " << ef;
+  LOG("ComputeAttenuation", pDEBUG) << "Before decay: " << pdgi << ", E = " << ef;
   LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << vxf << " , " << vyf << " , " << vzf << " , " << tf << " ]";
   LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << dxf << " , " << dyf << " , " << dzf << " ]";
 
@@ -417,7 +419,7 @@ vector<GHepParticle> DecayTau(GHepParticle * tau) {
     for ( int sec=1; sec<Tauola_evt->getParticleCount(); sec++ ) {
       int spdg   = Tauola_evt->getParticle(sec)->getPdgID();
       double se  = Tauola_evt->getParticle(sec)->getE();
-      if ( pdg::IsNeutrino(TMath::Abs(pdg)) && e>gOptEmin ) {
+      if ( pdg::IsNeutrino(TMath::Abs(spdg)) && se>gOptEmin ) {
         double spx = Tauola_evt->getParticle(sec)->getPx();
         double spy = Tauola_evt->getParticle(sec)->getPy();
         double spz = Tauola_evt->getParticle(sec)->getPz();

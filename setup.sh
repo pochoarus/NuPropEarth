@@ -14,6 +14,14 @@ export GENIE=/path/to/directory/where/GENIE/is/installed
 export PATH=$GENIE/bin:$PATH
 export LD_LIBRARY_PATH=$GENIE/lib:$LD_LIBRARY_PATH
 
+#log4cpp
+export LOG4CPP=/path/to/directory/where/LOG4CPP/is/installed
+export LD_LIBRARY_PATH=$LOG4CPP/lib:$LD_LIBRARY_PATH
+
+#libxml2
+export LIBXML2=/path/to/directory/where/LIBXML2/is/installed
+export LD_LIBRARY_PATH=$LIBXML2/lib:$LD_LIBRARY_PATH
+
 #pythia
 export PYTHIA6=/path/to/directory/where/PYTHIA6/is/installed
 export LD_LIBRARY_PATH=$PYTHIA6:$LD_LIBRARY_PATH

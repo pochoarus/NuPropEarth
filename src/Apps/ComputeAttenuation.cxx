@@ -74,10 +74,10 @@ double mtau; //loaded once tauola is initialised
 //functions
 void GetCommandLineArgs (int argc, char ** argv);
 void BuildEarth     (string geofilename);
-void FillNeutrino       (GHepParticle * nu, int &pdg, double &px, double &py,double &pz, double &e, double &vx, double &vy, double &vz, double &t) {
-  pdg = nu->Pdg();
-  px  = nu->Px(); py = nu->Py(); pz = nu->Pz(); e = nu->E();
-  vx  = nu->Vx(); vy = nu->Vy(); vz = nu->Vz(); t = nu->Vt();
+void FillParticle       (GHepParticle * part, int &pdg, double &px, double &py,double &pz, double &e, double &vx, double &vy, double &vz, double &t) {
+  pdg = part->Pdg();
+  px  = part->Px(); py = part->Py(); pz = part->Pz(); e = part->E();
+  vx  = part->Vx(); vy = part->Vy(); vz = part->Vz(); t = part->Vt();
 }
 vector<GHepParticle> DecayTau (GHepParticle * tau);
 
@@ -189,40 +189,41 @@ int main(int argc, char** argv)
   // create file so tree is saved inside
   TFile * outfile = new TFile(OutEvFile.c_str(),"RECREATE");
   
-  int NuIn_Pdg,NuOut_Pdg;
-  double NuIn_X4[4],NuOut_X4[4];
-  double NuIn_P4[4],NuOut_P4[4];
+  int In_Pdg,Out_Pdg;
+  double In_X4[4],Out_X4[4];
+  double In_P4[4],Out_P4[4];
   int NInt,NIntCC,NIntNC;
   int SctID[NMAXINT];
   int IntID[NMAXINT];
   int Tgt[NMAXINT];
-  int Nu[NMAXINT];
+  int Pdg[NMAXINT];
 
   TTree *influx = new TTree("InFlux","InFlux");
-  influx->Branch("Nu_In", &NuIn_Pdg, "Nu_In/I"    );       
-  influx->Branch("X4_In",  NuIn_X4,  "X4_In[4]/D" );       
-  influx->Branch("P4_In",  NuIn_P4,  "P4_In[4]/D" );       
+  influx->Branch("In_Pdg", &In_Pdg, "In_Pdg/I"   );       
+  influx->Branch("In_X4",  In_X4,   "In_X4[4]/D" );       
+  influx->Branch("In_P4",  In_P4,   "In_P4[4]/D" );       
 
   TTree *outflux = new TTree("OutFlux","OutFlux");
-  outflux->Branch("Nu_In",  &NuIn_Pdg,  "Nu_In/I"       );       
-  outflux->Branch("X4_In",  NuIn_X4,    "X4_In[4]/D"    );       
-  outflux->Branch("P4_In",  NuIn_P4,    "P4_In[4]/D"    );       
-  outflux->Branch("Nu_Out", &NuOut_Pdg, "Nu_Out/I"      );       
-  outflux->Branch("X4_Out", NuOut_X4,   "X4_Out[4]/D"   );       
-  outflux->Branch("P4_Out", NuOut_P4,   "P4_Out[4]/D"   );       
-  outflux->Branch("NInt",   &NInt,      "NInt/I"        );       
-  outflux->Branch("NIntCC", &NIntCC,    "NIntCC/I"      );       
-  outflux->Branch("NIntNC", &NIntNC,    "NIntNC/I"      );       
-  outflux->Branch("SctID",  SctID,      "SctID[NInt]/I" );       
-  outflux->Branch("IntID",  IntID,      "IntID[NInt]/I" );       
-  outflux->Branch("Tgt",    Tgt,        "Tgt[NInt]/I"   );        
-  outflux->Branch("Nu",     Nu,         "Nu[NInt]/I"    );       
+  outflux->Branch("In_Pdg",  &In_Pdg,  "In_Pdg/I"      );       
+  outflux->Branch("In_X4",   In_X4,    "In_X4[4]/D"    );       
+  outflux->Branch("In_P4",   In_P4,    "In_P4[4]/D"    );       
+  outflux->Branch("Out_Pdg", &Out_Pdg, "Out_Pdg/I"     );       
+  outflux->Branch("Out_X4",  Out_X4,   "Out_X4[4]/D"   );       
+  outflux->Branch("Out_P4",  Out_P4,   "Out_P4[4]/D"   );       
+  outflux->Branch("NInt",    &NInt,    "NInt/I"        );       
+  outflux->Branch("NIntCC",  &NIntCC,  "NIntCC/I"      );       
+  outflux->Branch("NIntNC",  &NIntNC,  "NIntNC/I"      );       
+  outflux->Branch("SctID",   SctID,    "SctID[NInt]/I" );       
+  outflux->Branch("IntID",   IntID,    "IntID[NInt]/I" );       
+  outflux->Branch("Tgt",     Tgt,      "Tgt[NInt]/I"   );        
+  outflux->Branch("Pdg",     Pdg,      "Pdg[NInt]/I"   );       
 
   LOG("ComputeAttenuation", pDEBUG) << "Event loop...";
 
   GHepParticle * Nu_In = new GHepParticle();
   GHepParticle * Nu_Out = new GHepParticle();
   vector<GHepParticle> SecNu;
+  vector<GHepParticle> OutTau;
 
   int NNu = 0;
   NIntCC = 0;
@@ -243,7 +244,7 @@ int main(int argc, char** argv)
     if (NInt==0) {
       if ( NNu%100==0 ) LOG("ComputeAttenuation", pINFO) << "Event " << NNu << " out of " << gOptNev;
       Nu_In = flx_driver->GetNeutrino();
-      FillNeutrino(Nu_In,NuIn_Pdg,NuIn_P4[0],NuIn_P4[1],NuIn_P4[2],NuIn_P4[3],NuIn_X4[0],NuIn_X4[1],NuIn_X4[2],NuIn_X4[3]);
+      FillParticle(Nu_In,In_Pdg,In_P4[0],In_P4[1],In_P4[2],In_P4[3],In_X4[0],In_X4[1],In_X4[2],In_X4[3]);
       influx->Fill();
     }
 
@@ -257,7 +258,7 @@ int main(int argc, char** argv)
       SctID[NInt] = event->Summary()->ProcInfoPtr()->ScatteringTypeId();
       IntID[NInt] = event->Summary()->ProcInfoPtr()->InteractionTypeId();
       Tgt[NInt]   = ( event->TargetNucleus() ) ? event->TargetNucleus()->Pdg() : event->HitNucleon()->Pdg();
-      Nu[NInt]    = event->Probe()->Pdg();
+      Pdg[NInt]   = event->Probe()->Pdg();
 
       const TLorentzVector & X4  = *event->Vertex();
       const TLorentzVector & P4  = *event->Probe()->P4();
@@ -266,7 +267,7 @@ int main(int argc, char** argv)
       LOG("ComputeAttenuation", pDEBUG) << "Neutrino interaction!!!";
       LOG("ComputeAttenuation", pDEBUG) << "@@Interact   = "   << SctID[NInt] << "   " << IntID[NInt];
       LOG("ComputeAttenuation", pDEBUG) << "@@Target     = "   << Tgt[NInt];
-      LOG("ComputeAttenuation", pDEBUG) << "@@Probe      = "   << Nu[NInt] << " , E =" << P4.E();
+      LOG("ComputeAttenuation", pDEBUG) << "@@Probe      = "   << Pdg[NInt] << " , E =" << P4.E();
       LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << X4.X() << " , " << X4.Y() << " , " << X4.Z() << " , " << X4.T() << " ]";
       LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << P4.Px()/P4.E() << " , " << P4.Py()/P4.E() << " , " << P4.Pz()/P4.E() << " ]";
       LOG("ComputeAttenuation", pDEBUG) << *event;
@@ -288,7 +289,10 @@ int main(int argc, char** argv)
           p->SetEnergy( TMath::Sqrt(p->Px()*p->Px()+p->Py()*p->Py()+p->Pz()*p->Pz()+mtau*mtau) ); //use this energy to avoid energy conservation in tauola
           p->SetPosition( X4.X()+p->Vx()*1e-15, X4.Y()+p->Vy()*1e-15, X4.Z()+p->Vz()*1e-15, X4.T()+p->Vt() ); //position -> passing from fm(genie) to m(geom)
           vector<GHepParticle> Prod = DecayTau(p);
-          for (int i=0; i<Prod.size(); i++) SecNu.push_back(Prod[i]);
+          for (unsigned int i=0; i<Prod.size(); i++) {
+            if ( pdg::IsTau(TMath::Abs(Prod[i].Pdg())) ) OutTau.push_back(Prod[i]);
+            else SecNu.push_back(Prod[i]);
+          }
         }
       }
 
@@ -296,19 +300,22 @@ int main(int argc, char** argv)
 
       if ( SecNu.size()>0 ) continue;
 
-      LOG("ComputeAttenuation", pDEBUG) << " ----> Absorbed by the Earth";
-      Nu_Out->SetPdgCode(0);
-      Nu_Out->SetMomentum(0,0,0,0);
-      Nu_Out->SetPosition(0,0,0,0);
+      LOG("ComputeAttenuation", pDEBUG) << " ----> No more secondary neutrinos";
+
+      for (unsigned int i=0; i<OutTau.size(); i++) {
+        LOG("ComputeAttenuation", pDEBUG) << " ----> Tau: Goodbye Earth!!!";
+        FillParticle(&OutTau[i],Out_Pdg,Out_P4[0],Out_P4[1],Out_P4[2],Out_P4[3],Out_X4[0],Out_X4[1],Out_X4[2],Out_X4[3]);
+        outflux->Fill();
+      }
+      OutTau.clear();
 
     }
     else {
-      LOG("ComputeAttenuation", pDEBUG) << " ----> Goodbye Earth!!!";
+      LOG("ComputeAttenuation", pDEBUG) << " ----> Neutrino: Goodbye Earth!!!";
       Nu_Out = flx_driver->GetNeutrino();
+      FillParticle(Nu_Out,Out_Pdg,Out_P4[0],Out_P4[1],Out_P4[2],Out_P4[3],Out_X4[0],Out_X4[1],Out_X4[2],Out_X4[3]);
+      outflux->Fill();
     }
-
-    FillNeutrino(Nu_Out,NuOut_Pdg,NuOut_P4[0],NuOut_P4[1],NuOut_P4[2],NuOut_P4[3],NuOut_X4[0],NuOut_X4[1],NuOut_X4[2],NuOut_X4[3]);
-    outflux->Fill();
 
     if ( SecNu.size()==0 ) {
       NInt = 0;
@@ -401,16 +408,15 @@ vector<GHepParticle> DecayTau(GHepParticle * tau) {
 
   }
 
+  double momf = TMath::Sqrt( ef*ef - mtau*mtau );
+
   LOG("ComputeAttenuation", pDEBUG) << "After decay: " << pdgi << ", E = " << ef;
   LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << vxf << " , " << vyf << " , " << vzf << " , " << tf << " ]";
   LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << dxf << " , " << dyf << " , " << dzf << " ]";
 
-
   vector<GHepParticle> Prod;
 
   if (idec>0) {
-
-    double momf = TMath::Sqrt( ef*ef - mtau*mtau );
 
     //decay tau
     TauolaHEPEVTEvent * Tauola_evt = new TauolaHEPEVTEvent();
@@ -438,13 +444,15 @@ vector<GHepParticle> DecayTau(GHepParticle * tau) {
   }
   else {
 
-      LOG("ComputeAttenuation", pWARN) << "Tau did not decay!!!";
-      LOG("ComputeAttenuation", pWARN) << "  Energyi     = " << ei;
-      LOG("ComputeAttenuation", pWARN) << "  Positioni   = [ " << vxi << " , " << vyi << " , " << vzi << " , " << ti << " ]";
-      LOG("ComputeAttenuation", pWARN) << "  Directioni  = [ " << dxi << " , " << dyi << " , " << dzi << " ]";
-      LOG("ComputeAttenuation", pWARN) << "  Energyf     = " << ef;
-      LOG("ComputeAttenuation", pWARN) << "  Positionf   = [ " << vxf << " , " << vyf << " , " << vzf << " , " << tf << " ]";
-      LOG("ComputeAttenuation", pWARN) << "  Directionf  = [ " << dxf << " , " << dyf << " , " << dzf << " ]";    
+    LOG("ComputeAttenuation", pWARN) << "Tau did not decay!!!";
+    LOG("ComputeAttenuation", pWARN) << "  Energyi     = " << ei;
+    LOG("ComputeAttenuation", pWARN) << "  Positioni   = [ " << vxi << " , " << vyi << " , " << vzi << " , " << ti << " ]";
+    LOG("ComputeAttenuation", pWARN) << "  Directioni  = [ " << dxi << " , " << dyi << " , " << dzi << " ]";
+    LOG("ComputeAttenuation", pWARN) << "  Energyf     = " << ef;
+    LOG("ComputeAttenuation", pWARN) << "  Positionf   = [ " << vxf << " , " << vyf << " , " << vzf << " , " << tf << " ]";
+    LOG("ComputeAttenuation", pWARN) << "  Directionf  = [ " << dxf << " , " << dyf << " , " << dzf << " ]";    
+
+    Prod.push_back(GHepParticle(pdgi,kIStUndefined,-1,-1,-1,-1,dxf*momf,dyf*momf,dzf*momf,ef,vxf*1e-2,vyf*1e-2,vzf*1e-2,tf*1e-9));  //from cm/ns(tausic) to m/s(geom)
 
   }
 

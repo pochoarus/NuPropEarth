@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+
+<earth_prem>
+
+<!--
+Definition of the Earth PREM model
+-->
+
+  <param_set name="CoreA" radius="1221.5" density="13.0885,0.,-8.8381,0.">
+    <param element="Fe">    0.9        </param>
+    <param element="Ni">    0.1        </param>
+  </param_set>
+
+  <param_set name="CoreB" radius="3480.0" density="12.5815,-1.2638,-3.6426,-5.5281">
+    <param element="Fe">    0.9        </param>
+    <param element="Ni">    0.1        </param>
+  </param_set>
+
+  <param_set name="MantleA" radius="5701.0" density="7.9565,-6.4761,5.5283,-3.0807">
+    <param element="O">    0.4522        </param>
+    <param element="Mg">   0.2283        </param>
+    <param element="Si">   0.2149        </param>
+    <param element="Fe">   0.0597        </param>
+    <param element="Al">   0.0225        </param>
+    <param element="Ca">   0.0224        </param>
+  </param_set>
+
+  <param_set name="MantleB" radius="5771.0" density="5.3197,-1.4836,0.,0.">
+    <param element="O">    0.4522        </param>
+    <param element="Mg">   0.2283        </param>
+    <param element="Si">   0.2149        </param>
+    <param element="Fe">   0.0597        </param>
+    <param element="Al">   0.0225        </param>
+    <param element="Ca">   0.0224        </param>
+  </param_set>
+
+  <param_set name="MantleC" radius="5971.0" density="11.2494,-8.0298,0.,0.">
+    <param element="O">    0.4522        </param>
+    <param element="Mg">   0.2283        </param>
+    <param element="Si">   0.2149        </param>
+    <param element="Fe">   0.0597        </param>
+    <param element="Al">   0.0225        </param>
+    <param element="Ca">   0.0224        </param>
+  </param_set>
+
+  <param_set name="MantleD" radius="6151.0" density="7.1089,-3.8045,0.,0.">
+    <param element="O">    0.4522        </param>
+    <param element="Mg">   0.2283        </param>
+    <param element="Si">   0.2149        </param>
+    <param element="Fe">   0.0597        </param>
+    <param element="Al">   0.0225        </param>
+    <param element="Ca">   0.0224        </param>
+  </param_set>
+
+  <param_set name="MantleE" radius="6346.6" density="2.691,0.6924,0.,0.">
+    <param element="O">    0.4522        </param>
+    <param element="Mg">   0.2283        </param>
+    <param element="Si">   0.2149        </param>
+    <param element="Fe">   0.0597        </param>
+    <param element="Al">   0.0225        </param>
+    <param element="Ca">   0.0224        </param>
+  </param_set>
+
+  <param_set name="MantleF" radius="6356.0" density="2.9,0.,0.,0.">
+    <param element="O">    0.4522        </param>
+    <param element="Mg">   0.2283        </param>
+    <param element="Si">   0.2149        </param>
+    <param element="Fe">   0.0597        </param>
+    <param element="Al">   0.0225        </param>
+    <param element="Ca">   0.0224        </param>
+  </param_set>
+
+  <param_set name="Rock" radius="6368.0" density="2.6,0.,0.,0.">
+    <param element="O">    0.463    </param>
+    <param element="Si">   0.282    </param>
+    <param element="Al">   0.0823   </param>
+    <param element="Fe">   0.0563   </param>
+    <param element="Ca">   0.0415   </param>
+    <param element="Na">   0.0236   </param>
+    <param element="Mg">   0.0233   </param>
+    <param element="K">    0.0209   </param>
+    <param element="Ti">   0.0057   </param>
+    <param element="H">    0.0014   </param>
+  </param_set>
+
+  <param_set name="Ice" radius="6371.0" density="0.9168,0.,0.,0.">
+    <param element="O">    0.8881        </param>
+    <param element="H">    0.1119        </param>
+  </param_set>
+
+
+</earth_prem>

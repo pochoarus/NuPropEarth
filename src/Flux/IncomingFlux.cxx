@@ -17,7 +17,7 @@ using namespace genie::flux;
 using namespace genie::constants;
 
 //____________________________________________________________________________
-IncomingFlux::IncomingFlux(int pdg, double alpha, double cthmin, double cthmax, double cthmono, double emin, double emax, double emono, double depth, double radius, double height)
+IncomingFlux::IncomingFlux(int pdg, double alpha, double cthmin, double cthmax, double emin, double emax, double detpos[3], double radius, double height)
 {
 
   fNewNeutrino = true;
@@ -36,12 +36,12 @@ IncomingFlux::IncomingFlux(int pdg, double alpha, double cthmin, double cthmax, 
 
   fCThmin = cthmin;
   fCThmax = cthmax;
-  fCThmono = cthmono;
 
   fEmin = emin;          
   fEmax = emax;          
-  fEmono = emono;
-  fDepth = depth;
+  fDetPos[0] = detpos[0];
+  fDetPos[1] = detpos[1];
+  fDetPos[2] = detpos[2];
   fRadius = radius;
   fHeight = height;         
 
@@ -88,29 +88,29 @@ bool IncomingFlux::GenerateNext_1try(void)
   RandomGen * rnd = RandomGen::Instance();
 
   double e = 0.;
-  if (fEmono>0.) e = fEmono;
+  if (fEmin==fEmax) e = fEmin;
   else {
     if (fSpectralIndex==1) e = exp(log(fEmin)+rnd->RndFlux().Rndm()*log(fEmax/fEmin));
     else {
       double emin = TMath::Power(fEmin,  1.-fSpectralIndex);
-      double emax = TMath::Power(fEmax,1.-fSpectralIndex);
+      double emax = TMath::Power(fEmax,  1.-fSpectralIndex);
       e = TMath::Power(emin+(emax-emin)*rnd->RndFlux().Rndm(),1./(1.-fSpectralIndex));
     }
   }
 
   double dz = 0.;
-  if (fCThmono>-2.) dz = fCThmono;
-  else             dz = fCThmin+(fCThmax-fCThmin)*rnd->RndFlux().Rndm(); 
+  if (fCThmin==fCThmax) dz = fCThmin;
+  else                  dz = fCThmin+(fCThmax-fCThmin)*rnd->RndFlux().Rndm(); 
 
 
   fNeutrino->SetPdgCode(fPdg[rnd->RndFlux().Integer(fPdg.size())]);
 
   fNeutrino->SetMomentum( 0., e*TMath::Sqrt(1-dz*dz), e*dz, e );
 
-  if (fRadius == 0 && fHeight ==0) {
-    fNeutrino->SetPosition( 0.,  0., -fREarth_m + fDepth, 0. );
-  }
-  else {
+  double ShiftPos[3] = { 0., 0., 0. };
+
+  if ( fRadius!=0 || fHeight!=0 ) {
+    
     // If the detector has a finite extension we use a cylindrical shape, depending on the angle we choose a surface to generate the initial position (top, bottom, or lateral face)
     double A1 = TMath::Pi()*TMath::Power(fRadius,2.)*TMath::Abs(dz); // Corresponds to the area of a circular shape projected into a plane at an angle given by fCth
     double A2 = 2.0*fRadius*fHeight*TMath::Sqrt(1-dz*dz); // Corresponds to the area of the lateral face of the cylinder projected into the plane
@@ -120,23 +120,18 @@ bool IncomingFlux::GenerateNext_1try(void)
     if (rnd->RndFlux().Rndm() < f)  {
       double randR = fRadius*TMath::Sqrt(rnd->RndFlux().Rndm());
       double randAlpha = 2.*TMath::Pi()*rnd->RndFlux().Rndm();
-    
-      double randX = randR*TMath::Cos(randAlpha);
-      double randY = randR*TMath::Sin(randAlpha);
-      
-      if (dz < 0) {
-        fNeutrino->SetPosition( randX,  randY, -fREarth_m + fDepth - fHeight*0.5, 0. ); // Event at the top of the cylinder
-      }
-      else {
-        fNeutrino->SetPosition( randX,  randY, -fREarth_m + fDepth + fHeight*0.5, 0. ); // Event on the bottom of the cylinder
-      }  
+      ShiftPos[0] = randR*TMath::Cos(randAlpha);
+      ShiftPos[1] = randR*TMath::Sin(randAlpha);
+      ShiftPos[2] = (dz < 0) ? -fHeight*0.5 : fHeight*0.5; // Event at the top/bottom of the cylinder
     }
     else {
-      double randX = 2.*fRadius*(rnd->RndFlux().Rndm()-0.5);
-      double randY = TMath::Sqrt(fRadius*fRadius - randX*randX);
-      fNeutrino->SetPosition( randX,  randY, -fREarth_m + fDepth + fHeight*(rnd->RndFlux().Rndm()-0.5), 0. ); // Event at the lateral face
+      ShiftPos[0] = 2.*fRadius*(rnd->RndFlux().Rndm()-0.5);
+      ShiftPos[1] = TMath::Sqrt(fRadius*fRadius - ShiftPos[0]*ShiftPos[0]);
+      ShiftPos[2] = fHeight*(rnd->RndFlux().Rndm()-0.5);
     }
   } 
+
+  fNeutrino->SetPosition( fDetPos[0]+ShiftPos[0],  fDetPos[1]+ShiftPos[1], fDetPos[2] + ShiftPos[2], 0. ); // Event at the lateral face
   
   return true;
 

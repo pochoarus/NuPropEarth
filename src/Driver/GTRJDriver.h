@@ -31,7 +31,7 @@ public :
   void SetEventGeneratorList       (string listname);
   void UseFluxDriver               (GFluxI * flux);
   void UseGeomAnalyzer             (GeomAnalyzerI * geom);
-  void Configure                   ();
+  void Configure                   (double emin, double emax);
 
   // generate single neutrino event for input flux & geometry
   EventRecord * GenerateEvent (void);

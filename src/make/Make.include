@@ -6,7 +6,7 @@ LIBRARIES := $(LIBRARIES) $(shell $(GENIE)/src/scripts/setup/genie-config --libs
 
 #nuearthprop
 CPP_INCLUDES := $(CPP_INCLUDES) -I$(NUPROPEARTH)/src
-LIBRARIES := $(LIBRARIES) -L$(NUPROPEARTH)/lib -lGFlux -lGDriver
+LIBRARIES := $(LIBRARIES) -L$(NUPROPEARTH)/lib -lGFlux -lGDriver -lGPropagation
 
 # tauola
 CPP_INCLUDES := $(CPP_INCLUDES) -I$(TAUOLA)/include
@@ -18,5 +18,6 @@ LIBRARIES := $(LIBRARIES) -lgfortran $(TAUSIC)/tausic-sr-2004.f $(TAUSIC)/tausic
 
 CXXFLAGS := $(CXXFLAGS) -std=c++11
 
+ROOT_DICT_GEN_INCLUDES := $(CPP_INCLUDES) $(ROOT_DICT_GEN_INCLUDES)
 CPPFLAGS  = $(CPP_INCLUDES)
 CCFLAGS   = $(ROOT_DICT_GEN_INCLUDES)

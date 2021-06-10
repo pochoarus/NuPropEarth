@@ -1,20 +1,12 @@
-#include <cassert>
 #include <cstdlib>
 #include <cctype>
 #include <string>
 #include <vector>
-#include <sstream>
-#include <map>
 
 #include <TSystem.h>
 #include <TTree.h>
 #include <TFile.h>
 
-#include "libxml/parser.h"
-#include "libxml/xmlmemory.h"
-#include "libxml/xmlreader.h"
-
-#include "Framework/Conventions/Constants.h"
 #include "Framework/GHEP/GHepStatus.h"
 #include "Framework/GHEP/GHepParticle.h"
 #include "Framework/GHEP/GHepUtils.h"
@@ -23,7 +15,6 @@
 #include "Framework/EventGen/GFluxI.h"
 #include "Framework/EventGen/GEVGDriver.h"
 #include "Framework/Messenger/Messenger.h"
-#include "Framework/Numerical/RandomGen.h"
 #include "Framework/ParticleData/PDGCodes.h"
 #include "Framework/ParticleData/PDGLibrary.h"
 #include "Framework/Utils/XSecSplineList.h"
@@ -36,77 +27,48 @@
 #include "Framework/Utils/RunOpt.h"
 #include "Tools/Geometry/ROOTGeomAnalyzer.h"
 
-#include "Tauola/Tauola.h"
-#include "Tauola/TauolaHEPEVTParticle.h"
-
 #include "Driver/GTRJDriver.h"
 #include "Flux/IncomingFlux.h"
+#include "Propagation/TauPropagation.h"
 
-#include <boost/preprocessor/stringize.hpp>
-extern "C" { 
-  void initialize_tausic_sr_(int *muin);
-  void tau_transport_sr_(double *VX,double *VY,double *VZ,double *CX,double *CY,double *CZ,double *E,double *Depth,double *T,double *Rho,int *flag1,int *flag2,double *VXF,double *VYF,double *VZF,double *CXF,double *CYF,double *CZF,double *EF,double *DepthF,double *TF, int *IDEC, int *ITFLAG, double *TAUTI, double *TAUTF);
-}
-
-using namespace Tauolapp;
 
 using std::string;
 using std::vector;
-using std::map;
 using std::pair;
-using std::ostringstream;
 
 using namespace genie;
 using namespace genie::flux;
 using namespace genie::geometry;
 
-//TAUSIC variables
-int TAUIN = 2;
-int TAUMODEL = 1;
-int ITFLAG = 0; //set lifetime inside tausic
-double RHOR = 2.65; //rock density
-
-//TAUOLA varible
-double d_lifetime = Tauola::tau_lifetime * 1e-1; //lifetime from mm(tauola) to cm
-double cSpeed = constants::kLightSpeed/(units::centimeter/units::nanosecond);
-double mtau; //loaded once tauola is initialised
-
 //functions
 void GetCommandLineArgs (int argc, char ** argv);
-void BuildEarth     (string geofilename);
 void FillParticle       (GHepParticle * part, int &pdg, double &px, double &py,double &pz, double &e, double &vx, double &vy, double &vz, double &t) {
   pdg = part->Pdg();
   px  = part->Px(); py = part->Py(); pz = part->Pz(); e = part->E();
   vx  = part->Vx(); vy = part->Vy(); vz = part->Vz(); t = part->Vt();
 }
-vector<GHepParticle> DecayTau (GHepParticle * tau);
 
 
 // User-specified options:
-string          gOptOutDir = "./";               
-int             gOptRanSeed;               
-string          gOptInpXSecFile;           
-int             gOptNev;              
+string          gOptOutName = "./test.root";               
+string          gOptGeometry = "";               
+int             gOptRanSeed = 0;               
+string          gOptInpXSecFile = "";           
+int             gOptNev = 0;              
 int             gOptPdg = -1; //all flavors                   
-double          gOptEmono = -1; //no monoenergetic
 double          gOptEmin = 1e2;
 double          gOptEmax = 1e10;
-double          gOptCthmono = -2; //no fixed angle                   
 double          gOptCthmin = -1.;
 double          gOptCthmax =  1.;
 double          gOptAlpha = 1; //flat spectrum in log10e
-double          gOptDepth = 0.; //Detector position originally at surface
+double          gOptDetPos[3] = { 0., 0., 0. }; //Detector position at center of the volume
 double          gOptRadius = 0.; //Detector Radius (radius of a cylindrical shape) originally a point
-double          gOptHeight = 0.; //Detector height (height of the cylinder centerd at gOptDepth) originally a point
-bool            gOptEnableEnergyLoss  = false;
-bool            gOptEnableDecayLength = false;
-
-
-RandomGen * rnd;
-GeomAnalyzerI * geom_driver;
+double          gOptHeight = 0.; //Detector height (height of the cylinder centerd at gOptDetPos[2]) originally a point
+string          gOptTauProp = ""; //"","NOELOSS","TAUSIC"
 
 
 const int NMAXINT = 100;
+const Range1D_t spline_Erange = { 1e2, 1e10 }; //energy range limit based on HEDIS splines 
 
 //**************************************************************************
 //**************************************************************************
@@ -120,12 +82,7 @@ int main(int argc, char** argv)
   LOG("ComputeAttenuation", pDEBUG) << "Reading options...";
   GetCommandLineArgs(argc,argv);
 
-  string geofilename = "geometry-Earth.root";
-  if ( gSystem->AccessPathName(geofilename.c_str()) ) {
-    LOG("ComputeAttenuation", pDEBUG) << "Building Geometry...";
-    BuildEarth(geofilename); 
-  }
-  geometry::ROOTGeomAnalyzer * rgeom = new geometry::ROOTGeomAnalyzer(geofilename);
+  geometry::ROOTGeomAnalyzer * rgeom = new geometry::ROOTGeomAnalyzer(gOptGeometry);
   rgeom -> SetLengthUnits  ( genie::utils::units::UnitFromString("m")     );
   rgeom -> SetDensityUnits ( genie::utils::units::UnitFromString("g_cm3") );
   rgeom -> SetTopVolName   ("");
@@ -137,10 +94,10 @@ int main(int argc, char** argv)
   }
   LOG("ComputeAttenuation", pNOTICE) << topvol->GetName();
 
-  geom_driver = dynamic_cast<GeomAnalyzerI *> (rgeom);
+  GeomAnalyzerI * geom_driver = dynamic_cast<GeomAnalyzerI *> (rgeom);
 
   LOG("ComputeAttenuation", pDEBUG) << "Creating GFluxI...";
-  IncomingFlux * flx_driver = new IncomingFlux(gOptPdg, gOptAlpha, gOptCthmin, gOptCthmax, gOptCthmono, gOptEmin, gOptEmax, gOptEmono,gOptDepth,gOptRadius,gOptHeight);
+  IncomingFlux * flx_driver = new IncomingFlux(gOptPdg, gOptAlpha, gOptCthmin, gOptCthmax, gOptEmin, gOptEmax, gOptDetPos, gOptRadius, gOptHeight);
 
   RunOpt::Instance()->BuildTune();
 
@@ -149,6 +106,7 @@ int main(int argc, char** argv)
   utils::app_init::CacheFile(RunOpt::Instance()->CacheFile());
   utils::app_init::RandGen(gOptRanSeed);
   utils::app_init::XSecTable(gOptInpXSecFile, false);
+
   // Set GHEP print level
   GHepRecord::SetPrintLevel(RunOpt::Instance()->EventRecordPrintLevel());
 
@@ -159,35 +117,14 @@ int main(int argc, char** argv)
   trj_driver->UseGeomAnalyzer(geom_driver);
 
   LOG("ComputeAttenuation", pDEBUG) << "Configuring GTRJDriver...";
-  trj_driver->Configure();
+  trj_driver->Configure(spline_Erange.min,spline_Erange.max);
 
-  LOG("ComputeAttenuation", pDEBUG) << "Initializing TAUOLA...";
-  Tauola::initialize();
-  mtau = Tauola::getTauMass(); //use this mass to avoid energy conservation warning in tauola
-
-  LOG("ComputeAttenuation", pDEBUG) << "Initializing TAUSIC...";
-  string tausicpath = gSystem->Getenv("TAUSIC");
-  string cp_command = "cp "+tausicpath+"/tausic*.dat .";
-  system(cp_command.c_str());
-
-  initialize_tausic_sr_(&TAUIN);
-
-  LOG("ComputeAttenuation", pDEBUG) << "Initializing Random...";
-  rnd = RandomGen::Instance();
-
-  LOG("ComputeAttenuation", pINFO) << "Creating output name";
-  string OutEvFile = gOptOutDir + "/NuEarthProp_" + RunOpt::Instance()->Tune()->Name() + Form("_nu%d",gOptPdg);
-  if (gOptCthmono!=-2.) OutEvFile += Form("_cth%g",gOptCthmono);
-  else                  OutEvFile += Form("_cth%g-%g",gOptCthmin,gOptCthmax);
-  if (gOptEmono!=-1.)   OutEvFile += Form("_e%g",gOptEmono);
-  else                  OutEvFile += Form("_e%g-%g",gOptEmin,gOptEmax);
-  OutEvFile += Form("_s%d",gOptRanSeed);
-  OutEvFile += ".root";
-
-  LOG("ComputeAttenuation", pNOTICE) << "@@ Output file name: " << OutEvFile;
+  LOG("ComputeAttenuation", pDEBUG) << "Initializing Tau Propagation...";
+  TauPropagation * tauprop = new TauPropagation(gOptTauProp,gOptRanSeed);
+  if (gOptTauProp=="TAUSIC") tauprop->SetRockDensity(2.65);
 
   // create file so tree is saved inside
-  TFile * outfile = new TFile(OutEvFile.c_str(),"RECREATE");
+  TFile * outfile = new TFile(gOptOutName.c_str(),"RECREATE");
   
   int In_Pdg,Out_Pdg;
   double In_X4[4],Out_X4[4];
@@ -232,8 +169,8 @@ int main(int argc, char** argv)
   while ( NNu<gOptNev ) {
 
     if ( SecNu.size()>0 ) {
-      LOG("ComputeAttenuation", pDEBUG) << "@@SecNu      = "   << SecNu[0].Pdg() << " , E = " << SecNu[0].E();
-      LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << SecNu[0].Vx() << " , " << SecNu[0].Vy() << " , " << SecNu[0].Vz() << " , " << SecNu[0].Vt() << " ]";
+      LOG("ComputeAttenuation", pDEBUG) << "@@SecNu      = "   << SecNu[0].Pdg() << " , E = " << SecNu[0].E() << " GeV";
+      LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << SecNu[0].Vx() << " m, " << SecNu[0].Vy() << " m, " << SecNu[0].Vz() << " m, " << SecNu[0].Vt() << " s ]";
       LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << SecNu[0].Px()/SecNu[0].E() << " , " << SecNu[0].Py()/SecNu[0].E() << " , " << SecNu[0].Pz()/SecNu[0].E() << " ]";
       flx_driver->InitNeutrino(SecNu[0]);
       SecNu.erase(SecNu.begin()); //remove first entry because it is just process
@@ -249,8 +186,8 @@ int main(int argc, char** argv)
     }
 
     LOG("ComputeAttenuation", pDEBUG) << "Shooting Neutrino: " << NNu << "( " << NInt << " ) ----->" ;
-    LOG("ComputeAttenuation", pDEBUG) << "@@Flux = " << flx_driver->GetNeutrino()->Pdg() << " , E =" << flx_driver->GetNeutrino()->E();
-    LOG("ComputeAttenuation", pDEBUG) << "Postion   = [ " << flx_driver->GetNeutrino()->Vx() << " , " << flx_driver->GetNeutrino()->Vy() << " , " << flx_driver->GetNeutrino()->Vz() << " , " << flx_driver->GetNeutrino()->Vt() << " ] ";
+    LOG("ComputeAttenuation", pDEBUG) << "@@Flux = " << flx_driver->GetNeutrino()->Pdg() << " , E =" << flx_driver->GetNeutrino()->E() << " GeV";
+    LOG("ComputeAttenuation", pDEBUG) << "Postion   = [ " << flx_driver->GetNeutrino()->Vx() << " m, " << flx_driver->GetNeutrino()->Vy() << " m, " << flx_driver->GetNeutrino()->Vz() << " m, " << flx_driver->GetNeutrino()->Vt() << " s ] ";
     LOG("ComputeAttenuation", pDEBUG) << "Direction = [ " << flx_driver->GetNeutrino()->Px()/flx_driver->GetNeutrino()->E() << " , " << flx_driver->GetNeutrino()->Py()/flx_driver->GetNeutrino()->E() << " , " << flx_driver->GetNeutrino()->Pz()/flx_driver->GetNeutrino()->E() << " ]";
 
     if (event) {
@@ -267,8 +204,8 @@ int main(int argc, char** argv)
       LOG("ComputeAttenuation", pDEBUG) << "Neutrino interaction!!!";
       LOG("ComputeAttenuation", pDEBUG) << "@@Interact   = "   << SctID[NInt] << "   " << IntID[NInt];
       LOG("ComputeAttenuation", pDEBUG) << "@@Target     = "   << Tgt[NInt];
-      LOG("ComputeAttenuation", pDEBUG) << "@@Probe      = "   << Pdg[NInt] << " , E =" << P4.E();
-      LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << X4.X() << " , " << X4.Y() << " , " << X4.Z() << " , " << X4.T() << " ]";
+      LOG("ComputeAttenuation", pDEBUG) << "@@Probe      = "   << Pdg[NInt] << " , E =" << P4.E() << " GeV";
+      LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << X4.X() << " m, " << X4.Y() << " m, " << X4.Z() << " m, " << X4.T() << " s ]";
       LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << P4.Px()/P4.E() << " , " << P4.Py()/P4.E() << " , " << P4.Pz()/P4.E() << " ]";
       LOG("ComputeAttenuation", pDEBUG) << *event;
       
@@ -280,20 +217,36 @@ int main(int argc, char** argv)
       TObjArrayIter piter(event);
 
       while ( (p=(GHepParticle *)piter.Next()) ) {
-        if ( pdg::IsNeutrino(TMath::Abs(p->Pdg())) && p->Status() && p->E()>gOptEmin ) {
+        
+        if ( pdg::IsNeutrino(TMath::Abs(p->Pdg())) && p->Status() && p->E()>spline_Erange.min ) {
+          LOG("ComputeAttenuation", pDEBUG) << p->Pdg() << " " << p->E();
           p->SetEnergy( TMath::Sqrt(p->Px()*p->Px()+p->Py()*p->Py()+p->Pz()*p->Pz()) ); //not using E to avoid problems with neutrinos from pythia not on shell
           p->SetPosition( X4.X()+p->Vx()*1e-15, X4.Y()+p->Vy()*1e-15, X4.Z()+p->Vz()*1e-15, X4.T()+p->Vt() ); //position -> passing from fm(genie) to m(geom)
           SecNu.push_back(*p);
         }
         else if ( pdg::IsTau(TMath::Abs(p->Pdg())) && p->Status() ) {
-          p->SetEnergy( TMath::Sqrt(p->Px()*p->Px()+p->Py()*p->Py()+p->Pz()*p->Pz()+mtau*mtau) ); //use this energy to avoid energy conservation in tauola
           p->SetPosition( X4.X()+p->Vx()*1e-15, X4.Y()+p->Vy()*1e-15, X4.Z()+p->Vz()*1e-15, X4.T()+p->Vt() ); //position -> passing from fm(genie) to m(geom)
-          vector<GHepParticle> Prod = DecayTau(p);
-          for (unsigned int i=0; i<Prod.size(); i++) {
-            if ( pdg::IsTau(TMath::Abs(Prod[i].Pdg())) ) OutTau.push_back(Prod[i]);
-            else SecNu.push_back(Prod[i]);
+
+          double depthi  = 0.;
+          double lengthi = 0.;
+          std::vector< std::pair<double, const TGeoMaterial*> > MatLengths = geom_driver->ComputeMatLengths(*p->X4(),*p->P4());
+          for ( auto sitr : MatLengths ) {
+            double length  = sitr.first * 1e2;  //from m(geom) to cm(tau)
+            double rho     = sitr.second->GetDensity();
+            lengthi += length;
+            depthi  += length*rho;
+          }
+          LOG("ComputeAttenuation", pDEBUG) << "PathLength = " << depthi << " g/cm^2 ; Length = " << lengthi << " cm";
+
+          vector<GHepParticle> Prod = tauprop->Propagate(p,lengthi,depthi);
+          for ( auto & pr : Prod ) {
+            if ( pr.E()>spline_Erange.min ) {  
+              if ( pdg::IsTau(TMath::Abs(pr.Pdg())) ) OutTau.push_back(pr);
+              else SecNu.push_back(pr);
+            }
           }
         }
+
       }
 
       delete event;
@@ -335,9 +288,6 @@ int main(int argc, char** argv)
   delete flx_driver;
   delete trj_driver;
 
-  system("rm geometry-Earth.root");
-  system("rm tausic*.dat");
-
   return 0;
 }
 
@@ -347,286 +297,6 @@ int main(int argc, char** argv)
 //**************************************************************************
 //**************************************************************************
 
-vector<GHepParticle> DecayTau(GHepParticle * tau) {
-
-  int pdgi = tau->Pdg();
-
-  double vxi = tau->Vx()*1e2; //from m(geom) to cm(tausic)
-  double vyi = tau->Vy()*1e2;
-  double vzi = tau->Vz()*1e2;
-  double ti  = tau->Vt()*1e9; //from s(geom) to ns(tausic)
-
-  double momi = tau->P4()->P();
-  double dxi  = tau->Px()/momi;
-  double dyi  = tau->Py()/momi;
-  double dzi  = tau->Pz()/momi;
-  double ei   = TMath::Sqrt( momi*momi + mtau*mtau );
-  
-  LOG("ComputeAttenuation", pDEBUG) << "Before decay: " << pdgi << ", E = " << ei;
-  LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << vxi << " , " << vyi << " , " << vzi << " , " << ti << " ]";
-  LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << dxi << " , " << dyi << " , " << dzi << " ]";
-
-  int idec; //decay flag (0=not decay // >0=decay)
-  double vxf,vyf,vzf,tf; //position after propagation in cm/ns
-  double dxf,dyf,dzf,ef; //direction after propagation
-
-  if (gOptEnableEnergyLoss) {
-
-    double depthi = 0.;
-    const TLorentzVector & P4tau  = *tau->P4();
-    const TLorentzVector & X4tau  = *tau->X4();
-    std::vector< std::pair<double, const TGeoMaterial*> > MatLengths = geom_driver->ComputeMatLengths(X4tau,P4tau);
-    for ( auto sitr = MatLengths.begin(); sitr != MatLengths.end(); ++sitr) {
-      double length            = sitr->first * 1e2;  //from m(geom) to cm(tausic)
-      const  TGeoMaterial* mat = sitr->second;
-      double rho               = mat->GetDensity();
-      depthi += length*rho;
-    }
-    depthi = depthi/RHOR;
-    LOG("ComputeAttenuation", pDEBUG) << "PathLength = " << depthi << " cm r.e." ;
-
-    double tauti,tautf; //dummy only used when ITFLAG!=0
-    double depthf; //total distance travel after propagation
-
-    tau_transport_sr_(&vxi,&vyi,&vzi,&dxi,&dyi,&dzi,&ei,&depthi,&ti,&RHOR,&TAUMODEL,&TAUMODEL,&vxf,&vyf,&vzf,&dxf,&dyf,&dzf,&ef,&depthf,&tf,&idec,&ITFLAG,&tauti,&tautf);
-
-  }
-  else {
-
-    idec = 1;
-    dxf = dxi;
-    dyf = dyi;
-    dzf = dzi;
-    ef  = ei;
-
-    // position based on lifetime
-    double d_r = (gOptEnableDecayLength) ? -TMath::Log( rnd->RndGen().Rndm() ) * d_lifetime : 0;
-    vxf = vxi + d_r*dxi*momi/mtau;
-    vyf = vyi + d_r*dyi*momi/mtau;
-    vzf = vzi + d_r*dzi*momi/mtau;
-    tf  =  ti + d_r*ei/mtau/cSpeed;
-
-  }
-
-  double momf = TMath::Sqrt( ef*ef - mtau*mtau );
-
-  LOG("ComputeAttenuation", pDEBUG) << "After decay: " << pdgi << ", E = " << ef;
-  LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << vxf << " , " << vyf << " , " << vzf << " , " << tf << " ]";
-  LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << dxf << " , " << dyf << " , " << dzf << " ]";
-
-  vector<GHepParticle> Prod;
-
-  if (idec>0) {
-
-    //decay tau
-    TauolaHEPEVTEvent * Tauola_evt = new TauolaHEPEVTEvent();
-    TauolaHEPEVTParticle *Tauola_tau = new TauolaHEPEVTParticle( pdgi, 1, dxf*momf, dyf*momf, dzf*momf, ef, mtau, -1, -1, -1, -1 );
-    Tauola_evt->addParticle(Tauola_tau);
-    double pol = 1; //tau-(P=-1) & tau+(P=-1) however in tauola its is fliped
-    Tauola::decayOne(Tauola_tau,true,0.,0.,pol);
-
-    for ( int sec=1; sec<Tauola_evt->getParticleCount(); sec++ ) {
-      int spdg   = Tauola_evt->getParticle(sec)->getPdgID();
-      double se  = Tauola_evt->getParticle(sec)->getE();
-      if ( pdg::IsNeutrino(TMath::Abs(spdg)) && se>gOptEmin ) {
-        double spx = Tauola_evt->getParticle(sec)->getPx();
-        double spy = Tauola_evt->getParticle(sec)->getPy();
-        double spz = Tauola_evt->getParticle(sec)->getPz();
-        LOG("ComputeAttenuation", pDEBUG) << "Product: " << spdg << ", E = " << se;
-        LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << vxf << " , " << vyf << " , " << vzf << " , " << tf << " ]";
-        LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << spx/se << " , " << spy/se << " , " << spz/se << " ]";
-        Prod.push_back(GHepParticle(spdg,kIStUndefined,-1,-1,-1,-1,spx,spy,spz,se,vxf*1e-2,vyf*1e-2,vzf*1e-2,tf*1e-9));  //from cm/ns(tausic) to m/s(geom)
-      }
-    }
-
-    delete Tauola_evt;
-
-  }
-  else {
-
-    LOG("ComputeAttenuation", pWARN) << "Tau did not decay!!!";
-    LOG("ComputeAttenuation", pWARN) << "  Energyi     = " << ei;
-    LOG("ComputeAttenuation", pWARN) << "  Positioni   = [ " << vxi << " , " << vyi << " , " << vzi << " , " << ti << " ]";
-    LOG("ComputeAttenuation", pWARN) << "  Directioni  = [ " << dxi << " , " << dyi << " , " << dzi << " ]";
-    LOG("ComputeAttenuation", pWARN) << "  Energyf     = " << ef;
-    LOG("ComputeAttenuation", pWARN) << "  Positionf   = [ " << vxf << " , " << vyf << " , " << vzf << " , " << tf << " ]";
-    LOG("ComputeAttenuation", pWARN) << "  Directionf  = [ " << dxf << " , " << dyf << " , " << dzf << " ]";    
-
-    Prod.push_back(GHepParticle(pdgi,kIStUndefined,-1,-1,-1,-1,dxf*momf,dyf*momf,dzf*momf,ef,vxf*1e-2,vyf*1e-2,vzf*1e-2,tf*1e-9));  //from cm/ns(tausic) to m/s(geom)
-
-  }
-
-  return Prod;
-
-}
-
-//**************************************************************************
-//**************************************************************************
-//THIS FUNCTION BUILD THE GEOMETRY OF THE EARTH
-//**************************************************************************
-//**************************************************************************
-void BuildEarth(string geofilename){
-
-  double fREarth_km = fREarth_m/1e3;
-
-  LOG("ComputeAttenuation", pINFO) << "fREarth_km = "<< fREarth_km;
-
-  struct Layer{ double r1, r2, rho; TString Composition; };
-  vector<Layer> VecLayers;
-
-  const int NLAYERS = 10;
-  TString fComp[NLAYERS] = { "Core", "Core", "Mantle", "Mantle", "Mantle", "Mantle", "Mantle", "Mantle", "Rock", "Ice"       };
-  double fR[NLAYERS]     = { 1221.5,  3480.,    5701.,    5771.,    5971.,    6151.,   6346.6,    6356.,  6368.,  fREarth_km }; //km
-
-  double fEarthCoeff[NLAYERS][4] = {
-    {13.0885,0.,-8.8381,0.},
-    {12.5815,-1.2638,-3.6426,-5.5281} ,
-    {7.9565,-6.4761,5.5283,-3.0807},
-    {5.3197,-1.4836,0.,0.},
-    {11.2494,-8.0298,0.,0.},
-    {7.1089,-3.8045,0.,0.},
-    {2.691,0.6924,0.,0.},
-    {2.9,0.,0.,0.},
-    {2.6,0.,0.,0.},
-    {0.9168,0.,0.,0.}
-  };
-  
-  
-  double rmean = 0.;
-  double step  = 100.;
-  double r1    = 0;
-  double r2    = step;  
-  bool border  = false;  
-  int iLayer   = 0;
-  int iStep    = 0;
-    
-  while(1){       
-
-    if( r2>fR[iLayer] ) {
-      r2     = fR[iLayer]; 
-      border = true;
-    }
-   
-    Layer layer;
-    layer.r1 = r1;
-    layer.r2 = r2;
-    rmean    = ( r2 + r1 ) / 2.;
-    layer.rho         = fEarthCoeff[iLayer][0] + fEarthCoeff[iLayer][1]*rmean/fREarth_km + fEarthCoeff[iLayer][2]*pow(rmean/fREarth_km,2) + fEarthCoeff[iLayer][3]*pow(rmean/fREarth_km,3);
-    layer.Composition = fComp[iLayer];
-    
-    VecLayers.push_back(layer);
-    
-    if( border ) {
-      r1     = r2;
-      border = false;
-      iLayer++;
-    }
-    else r1 = (iStep+1)*step;
-
-    r2 = (iStep+2)*step;
-    iStep++;
-    
-    if( r1>=fR[NLAYERS-4] ) break;
-    
-  }
-
-  for(int iiLayer=NLAYERS-3; iiLayer<NLAYERS; iiLayer++){ // constant density
-    Layer layer;
-    layer.r1          = fR[iiLayer-1];
-    layer.r2          = fR[iiLayer];
-    layer.rho         = fEarthCoeff[iiLayer][0] + fEarthCoeff[iiLayer][1]*layer.r2/fREarth_km + fEarthCoeff[iiLayer][2]*pow(layer.r2/fREarth_km,2) + fEarthCoeff[iiLayer][3]*pow(layer.r2/fREarth_km,3);
-    layer.Composition = fComp[iiLayer];    
-    VecLayers.push_back(layer);
-  }
-
-  map<int,double> RockComp, MantleComp, CoreComp, IceComp;
-  RockComp    .insert(map<int, double>::value_type(1000080160,0.463)     );
-  RockComp    .insert(map<int, double>::value_type(1000140280,0.282)     );
-  RockComp    .insert(map<int, double>::value_type(1000130270,0.0823)    );
-  RockComp    .insert(map<int, double>::value_type(1000260560,0.0563)    );
-  RockComp    .insert(map<int, double>::value_type(1000200400,0.0415)    );
-  RockComp    .insert(map<int, double>::value_type(1000110230,0.0236)    );
-  RockComp    .insert(map<int, double>::value_type(1000120240,0.0233)    );
-  RockComp    .insert(map<int, double>::value_type(1000190390,0.0209)    );
-  RockComp    .insert(map<int, double>::value_type(1000220480,0.0057)    );
-  RockComp    .insert(map<int, double>::value_type(1000010010,0.0014)    );
-  MantleComp  .insert(map<int, double>::value_type(1000080160,0.4522)    );
-  MantleComp  .insert(map<int, double>::value_type(1000120240,0.2283)    );
-  MantleComp  .insert(map<int, double>::value_type(1000140280,0.2149)    );
-  MantleComp  .insert(map<int, double>::value_type(1000260560,0.0597)    );
-  MantleComp  .insert(map<int, double>::value_type(1000130270,0.0225)    );
-  MantleComp  .insert(map<int, double>::value_type(1000200400,0.0224)    );
-  CoreComp    .insert(map<int, double>::value_type(1000260560,0.9)       );
-  CoreComp    .insert(map<int, double>::value_type(1000280580,0.1)       );
-  IceComp     .insert(map<int, double>::value_type(1000080160,0.8881)    );
-  IceComp     .insert(map<int, double>::value_type(1000010010,0.1119)    );
-
-  // Define media and volumes
-  TGeoManager * GeoManager =  new TGeoManager("VolGenGeo", "generation volume geometry");
-
-  TGeoTranslation * Trans = new TGeoTranslation(0.,0.,0.);
-  
-  // vacuum
-  TGeoMaterial * MatVacuum = new TGeoMaterial("MatVacuum");
-  MatVacuum->SetA(0.);
-  MatVacuum->SetZ(0.);
-  MatVacuum->SetDensity(0.);
-  TGeoMedium * Vacuum = new TGeoMedium("Vacuum", 0, MatVacuum);
-  TGeoVolume *TopVolume = GeoManager->MakeTube("TopVolume",Vacuum,0.,fR[NLAYERS-1]*1E3, 2*fR[NLAYERS-1]*1.E3);
-  GeoManager->SetTopVolume(TopVolume);
-
-  TGeoMixture * LayerMix    [VecLayers.size()]; 
-  TGeoMedium  * LayerMedium [VecLayers.size()];
-  TGeoVolume  * Layer       [VecLayers.size()];
-  for(unsigned iiLayer=0; iiLayer<VecLayers.size(); iiLayer++){
-    
-    LOG("ComputeAttenuation", pDEBUG) << "Layer=" << iiLayer << ", Composition=" << VecLayers[iiLayer].Composition << ", r1=" << VecLayers[iiLayer].r1 << ", r2=" << VecLayers[iiLayer].r2 << ", rho=" << VecLayers[iiLayer].rho;
-
-    TString name = VecLayers[iiLayer].Composition;
-    name += iiLayer;
-    
-    map<int,double>::iterator iter;
-    if ( VecLayers[iiLayer].Composition=="Ice" )     {
-      LayerMix[iiLayer] = new TGeoMixture( name, IceComp.size(), VecLayers[iiLayer].rho ); 
-      iter = IceComp.begin();
-      for( ; iter != IceComp.end(); ++iter )     LayerMix[iiLayer]->AddElement( pdg::IonPdgCodeToA(iter->first), pdg::IonPdgCodeToZ(iter->first), iter->second );                  
-    }    
-    else if ( VecLayers[iiLayer].Composition=="Rock" )     {
-      LayerMix[iiLayer] = new TGeoMixture( name, RockComp.size(), VecLayers[iiLayer].rho ); 
-      iter = RockComp.begin();
-      for( ; iter != RockComp.end(); ++iter )     LayerMix[iiLayer]->AddElement( pdg::IonPdgCodeToA(iter->first), pdg::IonPdgCodeToZ(iter->first), iter->second );                  
-    }
-    else if( VecLayers[iiLayer].Composition=="Mantle" )    {
-      LayerMix[iiLayer] = new TGeoMixture( name, MantleComp.size(), VecLayers[iiLayer].rho ); 
-      iter = MantleComp.begin();
-      for( ; iter != MantleComp.end(); ++iter )   LayerMix[iiLayer]->AddElement( pdg::IonPdgCodeToA(iter->first), pdg::IonPdgCodeToZ(iter->first), iter->second );                  
-    }
-    else if( VecLayers[iiLayer].Composition=="Core" )      {
-      LayerMix[iiLayer] = new TGeoMixture( name, CoreComp.size(), VecLayers[iiLayer].rho ); 
-      iter = CoreComp.begin();
-      for( ; iter != CoreComp.end(); ++iter )     LayerMix[iiLayer]->AddElement( pdg::IonPdgCodeToA(iter->first), pdg::IonPdgCodeToZ(iter->first), iter->second );                  
-    }  
-    
-    LayerMedium[iiLayer] = new TGeoMedium( name, iiLayer+1, LayerMix[iiLayer] );   
-    Layer[iiLayer]       = GeoManager->MakeSphere( name, LayerMedium[iiLayer], VecLayers[iiLayer].r1*1.E3, VecLayers[iiLayer].r2*1.E3 ); 
-    TopVolume->AddNode( Layer[iiLayer], iiLayer+1, Trans );
-    
-  }
-
-  GeoManager->CloseGeometry();
-  GeoManager->Export(geofilename.c_str());
-
-  Vacuum    = 0; delete Vacuum;
-  MatVacuum = 0; delete MatVacuum;
-  for(unsigned iiLayer=0; iiLayer<VecLayers.size(); iiLayer++){
-    LayerMedium[iiLayer] = 0; delete LayerMedium[iiLayer];
-    LayerMix[iiLayer]    = 0; delete LayerMix[iiLayer];        
-  }  
-  GeoManager = 0; delete GeoManager;
-
-  return;
-
-}
 
 //**************************************************************************
 //**************************************************************************
@@ -647,70 +317,86 @@ void GetCommandLineArgs(int argc, char ** argv)
       apos=arg.find(" ");
       opt=arg.substr(0,apos);
 
-      if(opt.compare("-n")==0){   
+      if(opt.compare("--number-of-events")==0){   
         i++;
         LOG("ComputeAttenuation", pDEBUG) << "Reading number of events to generate";
         gOptNev = atof(argv[i]);
       }          
-      if(opt.compare("-s")==0){   
+      if(opt.compare("--geometry")==0){   
+        i++;
+        LOG("ComputeAttenuation", pDEBUG) << "Reading geometry";
+        gOptGeometry = argv[i];
+      }          
+      if(opt.compare("--seed")==0){   
         i++;
         LOG("ComputeAttenuation", pDEBUG) << "Reading seed";
         gOptRanSeed = atoi(argv[i]);
       }          
-      if(opt.compare("-o")==0){   
+      if(opt.compare("--output")==0){   
         i++;
-        LOG("ComputeAttenuation", pDEBUG) << "Reading output dir";
-        gOptOutDir = argv[i];
+        LOG("ComputeAttenuation", pDEBUG) << "Reading output name";
+        gOptOutName = argv[i];
       }          
-      if(opt.compare("-p")==0){   
+      if(opt.compare("--probe")==0){   
         i++;
         LOG("ComputeAttenuation", pINFO) << "Reading neutrino flavor";
         gOptPdg = atoi(argv[i]);
       }          
-      if(opt.compare("-a")==0){   
+      if(opt.compare("--alpha")==0){   
         i++;
         LOG("ComputeAttenuation", pINFO) << "Reading neutrino spectrum alpha";
         gOptAlpha = atof(argv[i]);
       }          
-      if(opt.compare("-t")==0){   
+      if(opt.compare("--costheta")==0){   
         i++;
-        LOG("ComputeAttenuation", pINFO) << "Reading neutrino mono angle";
-        gOptCthmono = atof(argv[i]);
+        LOG("ComputeAttenuation", pINFO) << "Reading neutrino angle";
+        vector<string> saux = utils::str::Split(argv[i], ",");
+        if      (saux.size()==1) {
+          gOptCthmin = gOptCthmax = atof(saux[0].c_str());
+        }
+        else if (saux.size()==2) {
+          gOptCthmin = atof(saux[0].c_str());
+          gOptCthmax = atof(saux[1].c_str());
+        }
+        else {
+          LOG("ComputeAttenuation", pFATAL) << "Wrong costheta argument " << argv[i] <<"; exit";
+          exit(1);
+        }
       }          
-      if(opt.compare("-tmin")==0){   
-        i++;
-        LOG("ComputeAttenuation", pINFO) << "Reading neutrino min angle";
-        gOptCthmin = atof(argv[i]);
-      }          
-      if(opt.compare("-tmax")==0){   
-        i++;
-        LOG("ComputeAttenuation", pINFO) << "Reading neutrino max angle";
-        gOptCthmax = atof(argv[i]);
-      }          
-      if(opt.compare("-e")==0){   
-        i++;
-        LOG("ComputeAttenuation", pINFO) << "Reading neutrino mono energy";
-        gOptEmono = atof(argv[i]);
-      }          
-      if(opt.compare("-emin")==0){   
+      if(opt.compare("--energy")==0){   
         i++;
         LOG("ComputeAttenuation", pINFO) << "Reading neutrino min energy";
-        gOptEmin = atof(argv[i]);
-      }          
-      if(opt.compare("-emax")==0){   
-        i++;
-        LOG("ComputeAttenuation", pINFO) << "Reading neutrino max energy";
-        gOptEmax = atof(argv[i]);
+        vector<string> saux = utils::str::Split(argv[i], ",");
+        if      (saux.size()==1) {
+          gOptEmin = gOptEmax = atof(saux[0].c_str());
+        }
+        else if (saux.size()==2) {
+          gOptEmin = atof(saux[0].c_str());
+          gOptEmax = atof(saux[1].c_str());
+        }
+        else {
+          LOG("ComputeAttenuation", pFATAL) << "Wrong energy argument " << argv[i] << "; exit";
+          exit(1);
+        }
       }          
       if(opt.compare("--cross-sections")==0){ 
         i++;
         LOG("ComputeAttenuation", pINFO) << "Reading cross-section file";
         gOptInpXSecFile = argv[i];  
       }
-      if(opt.compare("--depth")==0){
+      if(opt.compare("--detector-position")==0){
         i++; 
-        LOG("ComputeAttenuation", pINFO) << "Reading detector depth";
-        gOptDepth = atof(argv[i]);  
+        LOG("ComputeAttenuation", pINFO) << "Reading detector pos";
+        vector<string> saux = utils::str::Split(argv[i], ",");
+        if (saux.size()==3) {
+          gOptDetPos[0] = atof(saux[0].c_str());
+          gOptDetPos[1] = atof(saux[1].c_str());
+          gOptDetPos[2] = atof(saux[2].c_str());
+        }
+        else {
+          LOG("ComputeAttenuation", pFATAL) << "Wrong detector argument " << argv[i] << "; exit";
+          exit(1);
+        }
       }       
       if(opt.compare("--radius")==0){
         i++; 
@@ -722,43 +408,83 @@ void GetCommandLineArgs(int argc, char ** argv)
         LOG("ComputeAttenuation", pINFO) << "Reading detector height";
         gOptHeight = atof(argv[i]);  
       }       
-      if(opt.compare("-enable-eloss")==0){ 
-        LOG("ComputeAttenuation", pINFO) << "Enable energy loss for tau propagation";
-        gOptEnableEnergyLoss = true;  
-      } 
-      if(opt.compare("-enable-decaylength")==0){ 
-        LOG("ComputeAttenuation", pINFO) << "Enable decay length for tau propagation";
-        gOptEnableDecayLength = true;  
+      if(opt.compare("--tau-propagation")==0){ 
+        i++; 
+        LOG("ComputeAttenuation", pINFO) << "Enable tau propagation";
+        gOptTauProp = argv[i];  
       }      
     }
   }
 
-  ostringstream expinfo;
-  if(gOptNev > 0)            { expinfo << gOptNev            << " events";   } 
+
+
+  if ( gSystem->AccessPathName(gOptGeometry.c_str()) ) {
+    LOG("ComputeAttenuation", pFATAL) << "Geometry file not found: " << gOptGeometry << "; exit";
+    exit(1);
+  }
+
+  if ( gSystem->AccessPathName(gOptInpXSecFile.c_str()) ) {
+    LOG("ComputeAttenuation", pFATAL) << "Cross section file not found: " << gOptInpXSecFile << "; exit";
+    exit(1);
+  }
+
+  if ( !pdg::IsNeutrino(abs(gOptPdg)) && gOptPdg!=-1 ) {
+    LOG("ComputeAttenuation", pFATAL) << "Wrong neutrino flavor: " << gOptPdg << "; exit";
+    exit(1);
+  }
+
+  if ( gOptNev<=0 ) {
+    LOG("ComputeAttenuation", pFATAL) << "Wrong number of events: " << gOptNev << "; exit";
+    exit(1);    
+  }
+
+  if ( gOptHeight<0 ) {
+    LOG("ComputeAttenuation", pFATAL) << "Wrong height: " << gOptHeight << "; exit";
+    exit(1);    
+  }
+
+  if ( gOptRadius<0 ) {
+    LOG("ComputeAttenuation", pFATAL) << "Wrong radius: " << gOptRadius << "; exit";
+    exit(1);    
+  }
+
+  if (gOptEmin>gOptEmax || gOptEmin<spline_Erange.min || gOptEmax>spline_Erange.max) {
+    LOG("ComputeAttenuation", pFATAL) << "Wrong energy range: " << gOptEmin << "," << gOptEmax << "; exit";
+    exit(1);    
+  }
+  if (gOptEmin==gOptEmax) LOG("ComputeAttenuation", pNOTICE) << "Running in monoenergetic mode";
+
+  if (gOptCthmin>gOptCthmax || gOptCthmin<-1. || gOptCthmax<-1. || gOptCthmin>1. || gOptCthmax>1. ) {
+    LOG("ComputeAttenuation", pFATAL) << "Wrong costheta range: " << gOptCthmin << "," << gOptCthmax << "; exit";
+    exit(1);    
+  }
+  if (gOptCthmin==gOptCthmax) LOG("ComputeAttenuation", pNOTICE) << "Running in monoangular mode";
+
+  if (gOptTauProp!="" && gOptTauProp!="NOELOSS" && gOptTauProp!="TAUSIC" ) {
+    LOG("ComputeAttenuation", pFATAL) << "Wrong tau propagation: " << gOptTauProp << "; exit";
+    exit(1);    
+  }
+
 
   LOG("ComputeAttenuation", pNOTICE) << "\n\n" << utils::print::PrintFramedMesg("NuPropEarth job configuration");
-
   LOG("ComputeAttenuation", pNOTICE) 
      << "\n"
      << "\n @@ Random number seed: " << gOptRanSeed
      << "\n @@ Using cross-section file: " << gOptInpXSecFile
-     << "\n @@ Using output dir: " << gOptOutDir
+     << "\n @@ Using output file name: " << gOptOutName
      << "\n @@ Exposure" 
-     << "\n\t" << expinfo.str()
+     << "\n\t" << gOptNev
      << "\n @@ Kinematics" 
      << "\n\t Pdg          = " << gOptPdg
-     << "\n\t CosTheta     = " << gOptCthmono
      << "\n\t CosTheta_min = " << gOptCthmin
      << "\n\t CosTheta_max = " << gOptCthmax
-     << "\n\t E            = " << gOptEmono << " GeV"
      << "\n\t Emin         = " << gOptEmin << " GeV"
      << "\n\t Emax         = " << gOptEmax << " GeV"
      << "\n\t Alpha        = " << gOptAlpha
-     << "\n\t Depth        = " << gOptDepth << " m"
+     << "\n\t DetPos       = " << gOptDetPos[0] << "," << gOptDetPos[1] << "," << gOptDetPos[2] << " m"
      << "\n\t Radius       = " << gOptRadius << " m"
      << "\n\t Height       = " << gOptHeight << " m"
-     << "\n\t EnergyLoss   = " << gOptEnableEnergyLoss
-     << "\n\t DecayLength  = " << gOptEnableDecayLength
+     << "\n\t TauProp      = " << gOptTauProp
      << "\n\n";
 
 

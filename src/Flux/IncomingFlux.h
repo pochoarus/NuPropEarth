@@ -27,7 +27,7 @@ namespace genie {
     class IncomingFlux: public GFluxI {
 
       public :
-        IncomingFlux(int pdg, double alpha, double cthmin, double cthmax, double cthmono, double emin, double emax, double emono, double depth, double radius, double height);
+        IncomingFlux(int pdg, double alpha, double cthmin, double cthmax, double emin, double emax, double detpos[3], double radius, double height);
         virtual ~IncomingFlux();
 
         // methods implementing the GENIE GFluxI interface
@@ -57,11 +57,9 @@ namespace genie {
         double           fSpectralIndex;          
         double           fCThmin;          
         double           fCThmax;          
-        double           fCThmono;          
         double           fEmin;          
         double           fEmax;          
-        double           fEmono;
-        double           fDepth;
+        double           fDetPos[3];
         double           fRadius;
         double           fHeight;          
 

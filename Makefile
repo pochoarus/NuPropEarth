@@ -4,7 +4,7 @@ MAKEFILE = Makefile
 
 include $(GENIE)/src/make/Make.include
 
-BUILD_TARGETS = Flux Driver Apps
+BUILD_TARGETS = Flux Driver Propagation Apps tools
 
 all:     $(BUILD_TARGETS)
 
@@ -22,6 +22,13 @@ Driver: FORCE
 	cd $(NUPROPEARTH)/src/Driver && $(MAKE)
 	cd $(NUPROPEARTH)
 
+Propagation: FORCE
+	@echo " "
+	@echo "** Building Propagation..."
+	test -d lib || mkdir lib
+	cd $(NUPROPEARTH)/src/Propagation && $(MAKE)
+	cd $(NUPROPEARTH)
+
 Apps: FORCE
 	@echo " "
 	@echo "** Building Apps..."
@@ -29,13 +36,25 @@ Apps: FORCE
 	cd $(NUPROPEARTH)/src/Apps && $(MAKE)
 	cd $(NUPROPEARTH)
 
+tools: FORCE
+	@echo " "
+	@echo "** Building tools..."
+	test -d bin || mkdir bin
+	cd ${NUPROPEARTH}/src/tools && $(MAKE)
+	cd ${NUPROPEARTH}
+
+
+
+
 clean: FORCE
 	@echo " "
 	@echo "** Cleaning all.. "
 	cd $(NUPROPEARTH)/src/Flux && $(MAKE) clean
 	cd $(NUPROPEARTH)/src/Driver && $(MAKE) clean
+	cd $(NUPROPEARTH)/src/Propagation && $(MAKE) clean
 	cd $(NUPROPEARTH)/src/Apps && $(MAKE) clean
 	rm -f $(NUPROPEARTH)/lib/* $(NUPROPEARTH)/bin/*
 	cd $(NUPROPEARTH)
+
 
 FORCE:

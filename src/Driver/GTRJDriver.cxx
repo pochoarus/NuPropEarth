@@ -81,7 +81,7 @@ void GTRJDriver::UseGeomAnalyzer(GeomAnalyzerI * geom_analyzer)
   fGeomAnalyzer = geom_analyzer;
 }
 //___________________________________________________________________________
-void GTRJDriver::Configure()
+void GTRJDriver::Configure(double emin, double emax)
 {
   LOG("GTRJDriver", pNOTICE) << utils::print::PrintFramedMesg("Configuring GTRJDriver");
 
@@ -101,31 +101,33 @@ void GTRJDriver::Configure()
   PDGCodeList::const_iterator nuiter;
   PDGCodeList::const_iterator tgtiter;
   for(nuiter = fNuList.begin(); nuiter != fNuList.end(); ++nuiter) {
-   for(tgtiter = fTgtList.begin(); tgtiter != fTgtList.end(); ++tgtiter) {
+    for(tgtiter = fTgtList.begin(); tgtiter != fTgtList.end(); ++tgtiter) {
 
-     int target_pdgc   = *tgtiter;
-     int neutrino_pdgc = *nuiter;
+      int target_pdgc   = *tgtiter;
+      int neutrino_pdgc = *nuiter;
 
-     InitialState init_state(target_pdgc, neutrino_pdgc);
+      InitialState init_state(target_pdgc, neutrino_pdgc);
 
-     LOG("GTRJDriver", pNOTICE)
+      LOG("GTRJDriver", pNOTICE)
        << "\n\n ---- Creating a GEVGDriver object configured for init-state: "
        << init_state.AsString() << " ----\n\n";
 
-     GEVGDriver * evgdriver = new GEVGDriver;
-     evgdriver->SetEventGeneratorList(fEventGenList); // specify list of generators
-     evgdriver->Configure(init_state);
+      GEVGDriver * evgdriver = new GEVGDriver;
+      evgdriver->SetEventGeneratorList(fEventGenList); // specify list of generators
+      evgdriver->Configure(init_state);
 
-     Range1D_t rE = evgdriver->ValidEnergyRange();
-     double min = rE.min;
-     double max = (fFluxDriver->MaxEnergy() < rE.max) ? fFluxDriver->MaxEnergy() : rE.max;
+      Range1D_t rE = evgdriver->ValidEnergyRange();
+      if ( emin<rE.min || emax>rE.max ) {
+        LOG("GTRJDriver", pFATAL) << "Valid Energy range: " << rE.min << "  " << rE.max;
+        LOG("GTRJDriver", pFATAL) << "Define Energy range: " << emin << "  " << emax;
+        exit(1);
+      }
+      evgdriver->CreateSplines( 1000, emax, true ); 
+      evgdriver->CreateXSecSumSpline( 1000, emin, emax, true );
 
-     evgdriver->CreateSplines( 1000, max-1, true ); //splines has been computed up to from 1e2 to 1e10 with 200knots (avoid zero at edges)
-     evgdriver->CreateXSecSumSpline( 1000, min+1e-6, max-2, true );
-
-     LOG("GTRJDriver", pDEBUG) << "Adding new GEVGDriver object to GEVGPool";
-     fGPool->insert( GEVGPool::value_type(init_state.AsString(), evgdriver) );
-   } // targets
+      LOG("GTRJDriver", pDEBUG) << "Adding new GEVGDriver object to GEVGPool";
+      fGPool->insert( GEVGPool::value_type(init_state.AsString(), evgdriver) );
+    } // targets
   } // neutrinos
 
   LOG("GTRJDriver", pNOTICE) << "Finished configuring GTRJDriver\n\n";
@@ -193,10 +195,10 @@ bool GTRJDriver::ComputeInteraction(void)
   fCurdL = 0.;
   double NIntCum=0;
   
-  for ( auto sitr = MatLengths.begin(); sitr != MatLengths.end(); ++sitr) {
+  for ( auto sitr : MatLengths ) {
 
-    double length            = sitr->first;
-    const  TGeoMaterial* mat = sitr->second;
+    double length            = sitr.first;
+    const  TGeoMaterial* mat = sitr.second;
     double rho               = mat->GetDensity() * (units::m3/units::cm3) ;
 
     LOG("GTRJDriver", pDEBUG) << mat->GetName() << " -> rho = " << rho << " gr/m3";

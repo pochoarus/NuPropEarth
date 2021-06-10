@@ -189,7 +189,7 @@
   <priority msgstream="VldTestInputs">         WARN   </priority>
   <priority msgstream="XSecBase">              WARN </priority>
   <priority msgstream="XSecAlgMap">            WARN </priority>
-  <priority msgstream="XSecSplLst">            WARN </priority>
+  <priority msgstream="XSecSplLst">            ERROR </priority>
   <priority msgstream="ZExpAxialFormFactorModel"> WARN </priority>
   <priority msgstream="HEDISXSec">             WARN </priority>
   <priority msgstream="HEDISPXSec">            WARN </priority>
@@ -228,7 +228,9 @@
 
   <!-- NuPropEarth -->
   <priority msgstream="ComputeAttenuation">  INFO  </priority>
-  <priority msgstream="IncomingFlux">        WARN  </priority>                                                                                          
+  <priority msgstream="IncomingFlux">        WARN  </priority>                                                          
+  <priority msgstream="TauPropagation">      WARN  </priority>                                                          
   <priority msgstream="GTRJDriver">          WARN  </priority>
+  <priority msgstream="BuildEarth">          DEBUG  </priority>
 
 </messenger_config>

@@ -27,12 +27,11 @@ Then GENIE3 (w/ HEDIS) requires several external packages:
 - ROOT6
 - PYTHIA6
 - LHAPDF6
-- APFEL
 
 
 ## Install
 
-1. Install all the external packages: PYTHIA6,TAUOLA,TAUSIC,LHAPDF6,APFEL,ROOT6
+1. Install all the external packages: PYTHIA6,TAUOLA,TAUSIC,LHAPDF6,ROOT6
 
 2. Download NuPropEarth module on your machine 
 
@@ -54,7 +53,7 @@ source setup.sh
 ```
 git clone -b nupropearth https://github.com/pochoarus/GENIE-HEDIS.git $GENIE
 cd $GENIE
-./configure --enable-lhapdf6 --enable-apfel --with-lhapdf6-inc=$LHAPDF/include --with-lhapdf6-lib=$LHAPDF/lib --with-apfel-inc=$APFEL/include --with-apfel-lib=$APFEL/lib
+./configure --enable-lhapdf6 --enable-apfel --with-lhapdf6-inc=$LHAPDF/include --with-lhapdf6-lib=$LHAPDF/lib
 make
 ```
 
@@ -68,7 +67,7 @@ make
 
 ## Example
 
-To compute the attenuation you just have to run
+To compute the attenuation assuming Earth PREM model you just have to run
 
 ```
 NUMBEROFEVENTS="1e3" #to have enough statistic use 1e6
@@ -77,7 +76,8 @@ COSTHETA="0.1"
 TUNE="GHE19_00a_00_000" #GHE19_00a_00_000=BGR18(member=0), GHE19_00b_00_000=CSMS11(member=0)
 cd $NUPROPEARTH
 source setup.sh
-ComputeAttenuation -n $NUMBEROFEVENTS -t $COSTHETA -p $NUPDG --cross-sections ${GENIE}/genie_xsec/${TUNE}_dx0.01dy0.01_n200_nuall_nucleon_noglres.xml --event-generator-list HEDIS --tune $TUNE
+BuildEarth -xml $NUPROPEARTH/src/tools/DefaultPREM.xml -root ./geometry-earth.root
+ComputeAttenuation --output ./test.root --number-of-events $NUMBEROFEVENTS --probe $NU --costheta $COSTHETA --energy $ENERGY --detector-position 0.0,0.0,-6371e3 --geometry ./geometry-earth.root --seed 1 --tau-propagation TAUSIC --event-generator-list HEDIS --tune $TUNE --cross-sections ${GENIE}/genie_xsec/${TUNE}.xml
 ```
 
 

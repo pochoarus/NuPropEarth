@@ -120,7 +120,7 @@ int main(int argc, char** argv)
   trj_driver->Configure(spline_Erange.min,spline_Erange.max);
 
   LOG("ComputeAttenuation", pDEBUG) << "Initializing Tau Propagation...";
-  TauPropagation * tauprop = new TauPropagation(gOptTauProp,gOptRanSeed);
+  TauPropagation * tauprop = new TauPropagation(gOptTauProp,gOptRanSeed,geom_driver);
   if (gOptTauProp=="TAUSIC") tauprop->SetRockDensity(2.65);
 
   // create file so tree is saved inside
@@ -218,27 +218,17 @@ int main(int argc, char** argv)
 
       while ( (p=(GHepParticle *)piter.Next()) ) {
         
-        if ( pdg::IsNeutrino(TMath::Abs(p->Pdg())) && p->Status() && p->E()>spline_Erange.min ) {
+        if ( p->E()<=spline_Erange.min || p->Status()!=kIStStableFinalState ) continue;
+
+        if ( pdg::IsNeutrino(TMath::Abs(p->Pdg())) ) {
           LOG("ComputeAttenuation", pDEBUG) << p->Pdg() << " " << p->E();
           p->SetEnergy( TMath::Sqrt(p->Px()*p->Px()+p->Py()*p->Py()+p->Pz()*p->Pz()) ); //not using E to avoid problems with neutrinos from pythia not on shell
           p->SetPosition( X4.X()+p->Vx()*1e-15, X4.Y()+p->Vy()*1e-15, X4.Z()+p->Vz()*1e-15, X4.T()+p->Vt() ); //position -> passing from fm(genie) to m(geom)
           SecNu.push_back(*p);
         }
-        else if ( pdg::IsTau(TMath::Abs(p->Pdg())) && p->Status() ) {
+        else if ( pdg::IsTau(TMath::Abs(p->Pdg())) ) {
           p->SetPosition( X4.X()+p->Vx()*1e-15, X4.Y()+p->Vy()*1e-15, X4.Z()+p->Vz()*1e-15, X4.T()+p->Vt() ); //position -> passing from fm(genie) to m(geom)
-
-          double depthi  = 0.;
-          double lengthi = 0.;
-          std::vector< std::pair<double, const TGeoMaterial*> > MatLengths = geom_driver->ComputeMatLengths(*p->X4(),*p->P4());
-          for ( auto sitr : MatLengths ) {
-            double length  = sitr.first * 1e2;  //from m(geom) to cm(tau)
-            double rho     = sitr.second->GetDensity();
-            lengthi += length;
-            depthi  += length*rho;
-          }
-          LOG("ComputeAttenuation", pDEBUG) << "PathLength = " << depthi << " g/cm^2 ; Length = " << lengthi << " cm";
-
-          vector<GHepParticle> Prod = tauprop->Propagate(p,lengthi,depthi);
+          vector<GHepParticle> Prod = tauprop->Propagate(p);
           for ( auto & pr : Prod ) {
             if ( pr.E()>spline_Erange.min ) {  
               if ( pdg::IsTau(TMath::Abs(pr.Pdg())) ) OutTau.push_back(pr);
@@ -251,17 +241,6 @@ int main(int argc, char** argv)
 
       delete event;
 
-      if ( SecNu.size()>0 ) continue;
-
-      LOG("ComputeAttenuation", pDEBUG) << " ----> No more secondary neutrinos";
-
-      for (unsigned int i=0; i<OutTau.size(); i++) {
-        LOG("ComputeAttenuation", pDEBUG) << " ----> Tau: Goodbye Earth!!!";
-        FillParticle(&OutTau[i],Out_Pdg,Out_P4[0],Out_P4[1],Out_P4[2],Out_P4[3],Out_X4[0],Out_X4[1],Out_X4[2],Out_X4[3]);
-        outflux->Fill();
-      }
-      OutTau.clear();
-
     }
     else {
       LOG("ComputeAttenuation", pDEBUG) << " ----> Neutrino: Goodbye Earth!!!";
@@ -271,6 +250,13 @@ int main(int argc, char** argv)
     }
 
     if ( SecNu.size()==0 ) {
+      LOG("ComputeAttenuation", pDEBUG) << " ----> No more secondary neutrinos";
+      for (unsigned int i=0; i<OutTau.size(); i++) {
+        LOG("ComputeAttenuation", pDEBUG) << " ----> Tau: Goodbye Earth!!!";
+        FillParticle(&OutTau[i],Out_Pdg,Out_P4[0],Out_P4[1],Out_P4[2],Out_P4[3],Out_X4[0],Out_X4[1],Out_X4[2],Out_X4[3]);
+        outflux->Fill();
+      }
+      OutTau.clear();
       NInt = 0;
       NIntCC = 0;
       NIntNC = 0;
@@ -460,7 +446,7 @@ void GetCommandLineArgs(int argc, char ** argv)
   }
   if (gOptCthmin==gOptCthmax) LOG("ComputeAttenuation", pNOTICE) << "Running in monoangular mode";
 
-  if (gOptTauProp!="" && gOptTauProp!="NOELOSS" && gOptTauProp!="TAUSIC" ) {
+  if (gOptTauProp!="" && gOptTauProp!="NOELOSS" && gOptTauProp!="TAUSIC-ALLM" && gOptTauProp!="TAUSIC-BS" ) {
     LOG("ComputeAttenuation", pFATAL) << "Wrong tau propagation: " << gOptTauProp << "; exit";
     exit(1);    
   }

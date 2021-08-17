@@ -121,7 +121,6 @@ int main(int argc, char** argv)
 
   LOG("ComputeAttenuation", pDEBUG) << "Initializing Tau Propagation...";
   TauPropagation * tauprop = new TauPropagation(gOptTauProp,gOptRanSeed,geom_driver);
-  if (gOptTauProp=="TAUSIC") tauprop->SetRockDensity(2.65);
 
   // create file so tree is saved inside
   TFile * outfile = new TFile(gOptOutName.c_str(),"RECREATE");

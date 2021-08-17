@@ -29,7 +29,6 @@ namespace genie {
       vector<GHepParticle> Decay(double pdg, double vx, double vy, double vz, double t, double px, double py, double pz, double e);
 
       void ComputeDepth(GHepParticle * p, double &avgrho, double &lengthi);
-      void SetRockDensity(double rd) { rockdensity = rd; }
 
     private :
 
@@ -44,7 +43,6 @@ namespace genie {
       double polarization;
 
       //TAUSIC variables
-      double rockdensity;
       int TAUIN;
       int TAUMODEL;
       int ITFLAG;

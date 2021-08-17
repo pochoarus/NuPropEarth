@@ -6,6 +6,7 @@
 #include "Framework/Numerical/RandomGen.h"
 #include "Framework/Messenger/Messenger.h"
 #include "Framework/ParticleData/PDGUtils.h"
+#include "Tools/Geometry/ROOTGeomAnalyzer.h"
 
 #include "Tauola/Tauola.h"
 #include "Tauola/TauolaHEPEVTParticle.h"
@@ -21,17 +22,20 @@ namespace genie {
   class TauPropagation {
 
     public :
-      TauPropagation(string ptype, int seed);
+      TauPropagation(string ptype, int seed, GeomAnalyzerI * gd);
      ~TauPropagation();
 
-      vector<GHepParticle> Propagate(GHepParticle * tau,  double lengthi, double depthi );
+      vector<GHepParticle> Propagate(GHepParticle * tau );
       vector<GHepParticle> Decay(double pdg, double vx, double vy, double vz, double t, double px, double py, double pz, double e);
 
+      void ComputeDepth(GHepParticle * p, double &avgrho, double &lengthi);
       void SetRockDensity(double rd) { rockdensity = rd; }
 
     private :
 
       RandomGen * rnd;
+
+      GeomAnalyzerI * geom_driver;
 
       string tauproptype;
 

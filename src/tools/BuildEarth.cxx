@@ -28,21 +28,6 @@ struct Layer{
   map<int,double> elements;
 };
 
-map<string,int> ElementsPDG = { { "H",  1000010010 },   // H1
-                                { "C",  1000060120 },   // C12
-                                { "O",  1000080160 },   // O16
-                                { "Na", 1000110230 },   // Na23
-                                { "Mg", 1000120240 },   // Mg24
-                                { "Al", 1000130270 },   // Al27
-                                { "Si", 1000140280 },   // Si28
-                                { "S",  1000160320 },   // S32
-                                { "Cl", 1000170350 },   // Cl35
-                                { "K",  1000190390 },   // K39
-                                { "Ca", 1000200400 },   // Ca40
-                                { "Ti", 1000220480 },   // Ti48
-                                { "Fe", 1000260560 },   // Fe56
-                                { "Ni", 1000280580 },   // Ni58
-                                { "Br", 1000350800 } }; // Br80
 
 void GetCommandLineArgs (int argc, char ** argv);
 
@@ -98,7 +83,7 @@ int main (int argc, char** argv)
 
     if(!xmlStrcmp(name, (const xmlChar *) "param" ) && type==1) {
       xmlChar * xelem   = xmlTextReaderGetAttribute(reader,(const xmlChar*)"element");
-      auxpdg = ElementsPDG[utils::str::TrimSpaces((const char *)xelem)];
+      auxpdg = stoi(utils::str::TrimSpaces((const char *)xelem));
     }
 
     if(depth==3) xmllayers.back().elements.insert({auxpdg,atof((const char *)value)});

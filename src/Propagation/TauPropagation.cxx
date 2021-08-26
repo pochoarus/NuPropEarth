@@ -20,7 +20,7 @@ TauPropagation::TauPropagation(string ptype, int seed, GeomAnalyzerI * gd) {
   mtau         = Tauola::getTauMass();        //use this mass to avoid energy conservation warning in tauola
   d_lifetime   = Tauola::tau_lifetime/(constants::kLightSpeed/(units::millimeter/units::nanosecond)); //lifetime in ns
   polarization = 1;                           //tau-(P=-1) & tau+(P=-1) however in tauola its is fliped
-  LOG("TauPropagation", pDEBUG) << d_lifetime;
+  LOG("TauPropagation", pDEBUG) << "d_lifetime (TAUOLA): " << d_lifetime;
 
 
   /*TAUSIC:
@@ -52,11 +52,122 @@ TauPropagation::TauPropagation(string ptype, int seed, GeomAnalyzerI * gd) {
     system("rm ./tausic*.dat");
   }
 
+  else if ( tauproptype=="PROPOSAL" ) {
+    PROPOSAL::RandomGenerator::Get().SetSeed(seed);
+    ConfigProposal(geom_driver);
+  }
+
   LOG("TauPropagation", pDEBUG) << "Initializing Random...";
   rnd = RandomGen::Instance();
 
 }
 
+vector<PROPOSAL::Components::Component> TauPropagation::GetComponent(map<int,double> composition) {
+
+  NaturalIsotopes * iso = NaturalIsotopes::Instance();
+
+  double MassFracMax=0.;
+  double MoliFracMass=1.;
+  for ( auto c : composition ) {
+    int    PdgCode  = c.first;
+    int    Z        = pdg::IonPdgCodeToZ(PdgCode);
+    double MassFrac = c.second;
+    double AtomMass = iso->ElementDataPdg(Z,PdgCode)->AtomicMass();
+    if ( MassFrac>MassFracMax ) {
+      MassFracMax  = MassFrac;
+      MoliFracMass = MassFrac/AtomMass;
+    }
+  }
+
+  vector<PROPOSAL::Components::Component> component;
+  for ( auto c : composition ) {
+    int    PdgCode  = c.first;
+    int    Z        = pdg::IonPdgCodeToZ(PdgCode);
+    double MassFrac = c.second;
+    double AtomMass = iso->ElementDataPdg(Z,PdgCode)->AtomicMass();
+    double AtomInMolecule = MassFrac/AtomMass/MoliFracMass;     
+
+    component.push_back(PROPOSAL::Components::Component(to_string(PdgCode).c_str(),Z,AtomMass,AtomInMolecule));
+  
+  }
+
+  return component;
+
+}
+
+
+void TauPropagation::ConfigProposal(GeomAnalyzerI * gd) {
+
+  vector<shared_ptr<const PROPOSAL::Geometry>> vgeolayers;
+  vector<shared_ptr<const PROPOSAL::Medium>> vmedlayers;
+
+  //numbers extracted from proposal medium definitions
+  map<string,Ionisation_Constants> ion_const;
+  ion_const["Ice"]    = {  75.0, -3.5017, 0.09116, 3.4773,  0.2400, 2.8004, 0.00 };
+  ion_const["Mantle"] = { 136.4, -3.7738, 0.08301, 3.4120,  0.0492, 3.0549, 0.00 };
+  ion_const["Core"]   = { 286.0, -4.2911, 0.14680, 2.9632, -0.0012, 3.1531, 0.12 };
+
+  TLorentzVector p4(0,0,1,1);
+  TLorentzVector x4(0,0,0,0);
+  vector< pair<double, const TGeoMaterial*> > MatLengths = gd->ComputeMatLengths(x4,p4);
+
+  double lin  = 0;
+  double lout = 0;
+  for ( auto sitr : MatLengths ) {
+
+    lout += sitr.first; //m
+    const  TGeoMaterial* mat = sitr.second;
+    string mat_name = mat->GetName();
+    double mat_rho = mat->GetDensity(); //gr/cm3
+
+    auto glayer = make_shared<PROPOSAL::Sphere>(PROPOSAL::Vector3D(0,0,0), lout, lin);
+    glayer->SetHierarchy(1);    
+    vgeolayers.push_back(glayer);
+
+    lin = lout;
+
+    map<int,double> composition;
+    if (mat->IsMixture()) {
+      const TGeoMixture * mixt = dynamic_cast <const TGeoMixture*> (mat);
+      for (int i = 0; i < mixt->GetNelements(); i++) composition[gd->GetTargetPdgCode(mixt, i)] = mixt->GetWmixt()[i];
+    }
+    else composition[gd->GetTargetPdgCode(mat)] = 1.;
+
+    string lname = "";
+    if      (mat_name.find("Ice")    != std::string::npos) lname="Ice";
+    else if (mat_name.find("Mantle") != std::string::npos) lname="Mantle";
+    else if (mat_name.find("Core")   != std::string::npos) lname="Core";
+    
+    auto mlayer = make_shared<const PROPOSAL::Medium>(mat_name, 1, ion_const[lname].I, ion_const[lname].C, ion_const[lname].a, ion_const[lname].m, ion_const[lname].X0, ion_const[lname].X1, ion_const[lname].d0, mat_rho, GetComponent(composition));
+    vmedlayers.push_back(mlayer);     
+
+  }
+
+  auto geoWorld = make_shared<PROPOSAL::Sphere>(PROPOSAL::Vector3D(0,0,0), lout, 0 );
+
+  unique_ptr<PROPOSAL::Sector::Definition> def_global(new PROPOSAL::Sector::Definition());
+
+  PROPOSAL::Sector::Definition sec_def=*def_global;
+  sec_def.cut_settings.SetEcut(-1);
+  sec_def.cut_settings.SetVcut(0.001);
+
+  vector<PROPOSAL::Sector::Definition> sectors;
+  for (unsigned int i=0; i<vgeolayers.size(); i++ ) {
+    sec_def.SetMedium(vmedlayers[i]);
+    sec_def.SetGeometry(vgeolayers[i]);
+    sectors.push_back(sec_def);
+  }
+
+  PROPOSAL::InterpolationDef interpolation_def;
+  interpolation_def.path_to_tables          = string(gSystem->Getenv("NUPROPEARTH"))+"/proposal_tables";
+  interpolation_def.path_to_tables_readonly = string(gSystem->Getenv("NUPROPEARTH"))+"/proposal_tables";
+  interpolation_def.nodes_cross_section = 200;
+
+  ProposalTau = new PROPOSAL::Propagator(PROPOSAL::TauMinusDef::Get(), sectors, geoWorld, interpolation_def );
+
+  return;
+
+}
 
 void TauPropagation::ComputeDepth(GHepParticle * p, double &avgrho, double &totlength) { //length(cm) depth(g/cm2)
 
@@ -95,23 +206,22 @@ vector<GHepParticle> TauPropagation::Propagate(GHepParticle * tau) {
   LOG("TauPropagation", pDEBUG) << "  Position   = [ " << vxi << " cm, " << vyi << " cm, " << vzi << " cm, " << ti << " ns ]";
   LOG("TauPropagation", pDEBUG) << "  Direction  = [ " << dxi << " , " << dyi << " , " << dzi << " ]";
 
-  int idec; //decay flag (0=not decay // >0=decay)
+  int idec = 0; //decay flag (0=not decay // 1=decay)
   double vxf,vyf,vzf,tf; //position after propagation in cm/ns
   double dxf,dyf,dzf,ef; //direction after propagation
 
-  double avgrho,depthi;
+  double avgrho,depthi; //g/cm3, cm
   ComputeDepth(tau,avgrho,depthi);
 
-  double tauti = -TMath::Log( rnd->RndGen().Rndm() ) * d_lifetime; //ns
-  LOG("TauPropagation", pDEBUG) << tauti << " ns";
+  if      ( tauproptype=="TAUSIC-ALLM" or tauproptype=="TAUSIC-BS" ) {
 
-  if      (tauproptype=="TAUSIC") {
+    double tauti = -TMath::Log( rnd->RndGen().Rndm() ) * d_lifetime; //ns
+    
     while ( depthi>1 ) { //threshold in 1cm
       double tautf; //remaining lifetime [ns]
       double depthf; //total distance travel after propagation [cm]
       if   ( avgrho>2. ) tau_transport_sr_(&vxi,&vyi,&vzi,&dxi,&dyi,&dzi,&ei,&depthi,&ti,&avgrho,&TAUMODEL,&TAUMODEL,&vxf,&vyf,&vzf,&dxf,&dyf,&dzf,&ef,&depthf,&tf,&idec,&ITFLAG,&tauti,&tautf);  
       else               tau_transport_sw_(&vxi,&vyi,&vzi,&dxi,&dyi,&dzi,&ei,&depthi,&ti,&avgrho,&TAUMODEL,&TAUMODEL,&vxf,&vyf,&vzf,&dxf,&dyf,&dzf,&ef,&depthf,&tf,&idec,&ITFLAG,&tauti,&tautf);
-      LOG("TauPropagation", pDEBUG) << "  depthf  = " << depthf << " cm";
 
       if ( idec==1 ) break; //tau has decayed
 
@@ -124,14 +234,57 @@ vector<GHepParticle> TauPropagation::Propagate(GHepParticle * tau) {
       vxi = vxf; vyi = vyf; vzi = vzf; ti = tf;
       dxi = dxf; dyi = dyf; dzi = dzf; ei = ef; 
       
-      LOG("TauPropagation", pDEBUG) << tauti << " ns";
     }
 
   }
+  else if ( tauproptype=="PROPOSAL" ) {
+
+    PROPOSAL::Vector3D direction(dxi,dyi,dzi);
+    direction.CalculateSphericalCoordinates();
+
+    PROPOSAL::DynamicData particle_tau(PROPOSAL::TauMinusDef::Get().particle_type);
+
+    particle_tau.SetEnergy(ei*1E3); // [MeV]
+    particle_tau.SetPropagatedDistance(0);
+    particle_tau.SetPosition(PROPOSAL::Vector3D(vxi,vyi,vzi));
+    particle_tau.SetDirection(direction);
+    particle_tau.SetTime(ti);
+
+    PROPOSAL::Secondaries sec = ProposalTau->Propagate(particle_tau,depthi);
+
+    auto particles = sec.GetSecondaries();
+
+    int nparticles = particles.size();
+    LOG("TauPropagation", pDEBUG) << "nparticles: " << nparticles;
+
+    double e_dec = 0.;
+    for (int i=nparticles-1; i>=0; i--) {
+      if ( particles[i].GetType()>1000000000 ) break;
+      else {
+        idec = 1;
+        e_dec += particles[i].GetEnergy();
+      }
+    }
+
+    if ( idec==1 ) ef = e_dec/1e3; //from MeV to GeV
+    else           ef = sec.GetEnergy().back()/1e3; //from MeV to GeV
+
+    vxf = particles.back().GetPosition().GetX();
+    vyf = particles.back().GetPosition().GetY();
+    vzf = particles.back().GetPosition().GetZ();
+    dxf = particles.back().GetDirection().GetX();
+    dyf = particles.back().GetDirection().GetY();
+    dzf = particles.back().GetDirection().GetZ();
+    tf  = particles.back().GetTime();
+
+
+  }
   else if (tauproptype=="NOELOSS") {
+
+    double tauti = -TMath::Log( rnd->RndGen().Rndm() ) * d_lifetime; //ns
+
     dxf = dxi; dyf = dyi; dzf = dzi; ef = ei;
     double d_r  = tauti*(constants::kLightSpeed/(units::centimeter/units::nanosecond)); //cm
-    LOG("TauPropagation", pDEBUG) << d_r;
     if ( d_r*momi/mtau>depthi ) {
       idec = 0;
       vxf = vxi + depthi*dxi;
@@ -154,19 +307,20 @@ vector<GHepParticle> TauPropagation::Propagate(GHepParticle * tau) {
   }
 
   LOG("TauPropagation", pDEBUG) << "After decay: " << pdgi << ", E = " << ef << " GeV" << ", idec = " << idec;
+  LOG("TauPropagation", pDEBUG) << "  length     = " << sqrt(pow(vxi-vxf,2)+pow(vyi-vyf,2)+pow(vzi-vzf,2)) << " cm";
   LOG("TauPropagation", pDEBUG) << "  Position   = [ " << vxf << " cm, " << vyf << " cm, " << vzf << " cm, " << tf << " ns ]";
   LOG("TauPropagation", pDEBUG) << "  Direction  = [ " << dxf << " , " << dyf << " , " << dzf << " ]";
 
-  vxf *= 1e-2; //from cm(tausic) to m(geom)
+  vxf *= 1e-2; //from cm(tausic/proposal) to m(geom)
   vyf *= 1e-2;
   vzf *= 1e-2;
-  tf  *= 1e-9; //from ns(tausic) to s(geom)
+  tf  *= 1e-9; //from ns(tausic/proposal) to s(geom)
 
   double momf = TMath::Sqrt( ef*ef - mtau*mtau );
 
   vector<GHepParticle> PropProd;
-  if (idec>0) PropProd = Decay( pdgi, vxf, vyf, vzf, tf, dxf*momf, dyf*momf, dzf*momf, ef );
-  else        PropProd.push_back(GHepParticle(pdgi,kIStUndefined,-1,-1,-1,-1,dxf*momf,dyf*momf,dzf*momf,ef,vxf,vyf,vzf,tf));
+  if (idec==1) PropProd = Decay( pdgi, vxf, vyf, vzf, tf, dxf*momf, dyf*momf, dzf*momf, ef );
+  else         PropProd.push_back(GHepParticle(pdgi,kIStUndefined,-1,-1,-1,-1,dxf*momf,dyf*momf,dzf*momf,ef,vxf,vyf,vzf,tf));
 
   return PropProd;
 
@@ -191,7 +345,7 @@ vector<GHepParticle> TauPropagation::Decay(double pdg, double vx, double vy, dou
       double spy = Tauola_evt->getParticle(sec)->getPy();
       double spz = Tauola_evt->getParticle(sec)->getPz();
       LOG("TauPropagation", pDEBUG) << "Product: " << spdg << ", E = " << se << " GeV";
-      LOG("TauPropagation", pDEBUG) << "  Position   = [ " << vx << " , m" << vy << " , m" << vz << " , m" << t << " s ]";
+      LOG("TauPropagation", pDEBUG) << "  Position   = [ " << vx << " m, " << vy << " m, " << vz << " m, " << t << " s ]";
       LOG("TauPropagation", pDEBUG) << "  Direction  = [ " << spx/se << " , " << spy/se << " , " << spz/se << " ]";
       DecProd.push_back(GHepParticle(spdg,kIStUndefined,-1,-1,-1,-1,spx,spy,spz,se,vx,vy,vz,t));
     }
@@ -202,6 +356,8 @@ vector<GHepParticle> TauPropagation::Decay(double pdg, double vx, double vy, dou
   return DecProd;
 
 }
+
+
 
 
 

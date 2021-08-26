@@ -12,6 +12,10 @@ LIBRARIES := $(LIBRARIES) -L$(NUPROPEARTH)/lib -lGFlux -lGDriver -lGPropagation
 CPP_INCLUDES := $(CPP_INCLUDES) -I$(TAUOLA)/include
 LIBRARIES := $(LIBRARIES) -L$(TAUOLA)/lib -lTauolaCxxInterface -lTauolaFortran -lTauolaHEPEVT  
 
+# proposal
+CPP_INCLUDES := $(CPP_INCLUDES) -I$(PROPOSAL)/include
+LIBRARIES := $(LIBRARIES) -L$(PROPOSAL)/lib64 -lPROPOSAL  
+
 # tausic
 CERNLIBS = `cernlib mathlib packlib kernlib phtools`
 LIBRARIES := $(LIBRARIES) -lgfortran $(TAUSIC)/tausic-sr-2004.f $(TAUSIC)/tausic-sw-2004.f $(CERNLIBS)   

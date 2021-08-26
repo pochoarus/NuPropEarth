@@ -64,11 +64,11 @@ double          gOptAlpha = 1; //flat spectrum in log10e
 double          gOptDetPos[3] = { 0., 0., 0. }; //Detector position at center of the volume
 double          gOptRadius = 0.; //Detector Radius (radius of a cylindrical shape) originally a point
 double          gOptHeight = 0.; //Detector height (height of the cylinder centerd at gOptDetPos[2]) originally a point
-string          gOptTauProp = ""; //"","NOELOSS","TAUSIC"
+string          gOptTauProp = ""; //"","NOELOSS","TAUSIC-ALLM","TAUSIC-BS","PROPOSAL"
 
 
 const int NMAXINT = 100;
-const Range1D_t spline_Erange = { 1e2, 1e10 }; //energy range limit based on HEDIS splines 
+const Range1D_t spline_Erange = { 1e2, 1e12 }; //energy range limit based on HEDIS splines 
 
 //**************************************************************************
 //**************************************************************************
@@ -96,6 +96,9 @@ int main(int argc, char** argv)
 
   GeomAnalyzerI * geom_driver = dynamic_cast<GeomAnalyzerI *> (rgeom);
 
+  LOG("ComputeAttenuation", pDEBUG) << "Initializing Tau Propagation...";
+  TauPropagation * tauprop = new TauPropagation(gOptTauProp,gOptRanSeed,geom_driver);
+
   LOG("ComputeAttenuation", pDEBUG) << "Creating GFluxI...";
   IncomingFlux * flx_driver = new IncomingFlux(gOptPdg, gOptAlpha, gOptCthmin, gOptCthmax, gOptEmin, gOptEmax, gOptDetPos, gOptRadius, gOptHeight);
 
@@ -118,9 +121,6 @@ int main(int argc, char** argv)
 
   LOG("ComputeAttenuation", pDEBUG) << "Configuring GTRJDriver...";
   trj_driver->Configure(spline_Erange.min,spline_Erange.max);
-
-  LOG("ComputeAttenuation", pDEBUG) << "Initializing Tau Propagation...";
-  TauPropagation * tauprop = new TauPropagation(gOptTauProp,gOptRanSeed,geom_driver);
 
   // create file so tree is saved inside
   TFile * outfile = new TFile(gOptOutName.c_str(),"RECREATE");
@@ -445,7 +445,7 @@ void GetCommandLineArgs(int argc, char ** argv)
   }
   if (gOptCthmin==gOptCthmax) LOG("ComputeAttenuation", pNOTICE) << "Running in monoangular mode";
 
-  if (gOptTauProp!="" && gOptTauProp!="NOELOSS" && gOptTauProp!="TAUSIC-ALLM" && gOptTauProp!="TAUSIC-BS" ) {
+  if (gOptTauProp!="" && gOptTauProp!="NOELOSS" && gOptTauProp!="TAUSIC-ALLM" && gOptTauProp!="TAUSIC-BS" && gOptTauProp!="PROPOSAL" ) {
     LOG("ComputeAttenuation", pFATAL) << "Wrong tau propagation: " << gOptTauProp << "; exit";
     exit(1);    
   }

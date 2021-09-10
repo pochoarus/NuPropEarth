@@ -222,7 +222,7 @@
   <priority msgstream="gntpc">               WARN   </priority>
   <priority msgstream="gmkspl">              DEBUG  </priority>
   <priority msgstream="gmkspl_dm">           WARN   </priority>
-  <priority msgstream="gspl2root">           INFO  </priority>
+  <priority msgstream="gspl2root">           DEBUG  </priority>
   <priority msgstream="gmkhedissf">          INFO   </priority>
   <priority msgstream="gmkglrersf">          INFO   </priority>
 
@@ -230,6 +230,7 @@
   <priority msgstream="ComputeAttenuation">  INFO  </priority>
   <priority msgstream="IncomingFlux">        WARN  </priority>                                                          
   <priority msgstream="TauPropagation">      WARN  </priority>                                                          
+  <priority msgstream="HadronPropagation">   WARN  </priority>                                                          
   <priority msgstream="GTRJDriver">          WARN  </priority>
   <priority msgstream="BuildEarth">          DEBUG  </priority>
 

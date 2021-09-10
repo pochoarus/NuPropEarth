@@ -180,7 +180,7 @@ bool GTRJDriver::ComputeInteraction(void)
   const TLorentzVector & nup4  = fFluxDriver -> Momentum ();
   const TLorentzVector & nux4  = fFluxDriver -> Position ();
 
-  vector< pair<double, const TGeoMaterial*> > MatLengths = fGeomAnalyzer->ComputeMatLengths(nux4,nup4);
+  std::vector< pair<double, const TGeoMaterial*> > MatLengths = fGeomAnalyzer->ComputeMatLengths(nux4,nup4);
 
   // current flux neutrino code & 4-p
   int    nupdg = fFluxDriver->PdgCode();

@@ -6,6 +6,7 @@
 #include <TSystem.h>
 #include <TTree.h>
 #include <TFile.h>
+#include <TDatabasePDG.h>
 
 #include "Framework/GHEP/GHepStatus.h"
 #include "Framework/GHEP/GHepParticle.h"
@@ -30,10 +31,10 @@
 #include "Driver/GTRJDriver.h"
 #include "Flux/IncomingFlux.h"
 #include "Propagation/TauPropagation.h"
+#include "Propagation/HadronPropagation.h"
 
 
 using std::string;
-using std::vector;
 using std::pair;
 
 using namespace genie;
@@ -99,6 +100,12 @@ int main(int argc, char** argv)
   LOG("ComputeAttenuation", pDEBUG) << "Initializing Tau Propagation...";
   TauPropagation * tauprop = new TauPropagation(gOptTauProp,gOptRanSeed,geom_driver);
 
+  LOG("ComputeAttenuation", pDEBUG) << "Initializing Hadron Propagation...";
+  HadronPropagation * hadronprop = new HadronPropagation(geom_driver);
+  TDatabasePDG * PdgDB  = TDatabasePDG::Instance();
+
+
+
   LOG("ComputeAttenuation", pDEBUG) << "Creating GFluxI...";
   IncomingFlux * flx_driver = new IncomingFlux(gOptPdg, gOptAlpha, gOptCthmin, gOptCthmax, gOptEmin, gOptEmax, gOptDetPos, gOptRadius, gOptHeight);
 
@@ -158,8 +165,8 @@ int main(int argc, char** argv)
 
   GHepParticle * Nu_In = new GHepParticle();
   GHepParticle * Nu_Out = new GHepParticle();
-  vector<GHepParticle> SecNu;
-  vector<GHepParticle> OutTau;
+  std::vector<GHepParticle> SecNu;
+  std::vector<GHepParticle> OutTau;
 
   int NNu = 0;
   NIntCC = 0;
@@ -217,6 +224,9 @@ int main(int argc, char** argv)
 
       while ( (p=(GHepParticle *)piter.Next()) ) {
         
+        //quit when it reachs the hadronic shower to avoid counting neutrinos from top
+        //if ( abs(p->Pdg())==2000000001 ) break; 
+
         if ( p->E()<=spline_Erange.min || p->Status()!=kIStStableFinalState ) continue;
 
         if ( pdg::IsNeutrino(TMath::Abs(p->Pdg())) ) {
@@ -227,11 +237,34 @@ int main(int argc, char** argv)
         }
         else if ( pdg::IsTau(TMath::Abs(p->Pdg())) ) {
           p->SetPosition( X4.X()+p->Vx()*1e-15, X4.Y()+p->Vy()*1e-15, X4.Z()+p->Vz()*1e-15, X4.T()+p->Vt() ); //position -> passing from fm(genie) to m(geom)
-          vector<GHepParticle> Prod = tauprop->Propagate(p);
-          for ( auto & pr : Prod ) {
-            if ( pr.E()>spline_Erange.min ) {  
-              if ( pdg::IsTau(TMath::Abs(pr.Pdg())) ) OutTau.push_back(pr);
-              else SecNu.push_back(pr);
+          std::vector<GHepParticle> TauProd = tauprop->Propagate(p);
+          for ( auto & tpr : TauProd ) {
+            if ( tpr.E()>spline_Erange.min ) {  
+              if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutTau.push_back(tpr);
+              else SecNu.push_back(tpr);
+            }
+          }
+        }
+        else {
+          TParticlePDG * partinfo = PdgDB->GetParticle(p->Pdg());
+          string pclass = partinfo->ParticleClass();
+          if( pclass=="B-Meson" || pclass=="B-Baryon" || pclass=="CharmedMeson" || pclass=="CharmedBaryon" ) { 
+            p->SetPosition( X4.X()+p->Vx()*1e-15, X4.Y()+p->Vy()*1e-15, X4.Z()+p->Vz()*1e-15, X4.T()+p->Vt() ); //position -> passing from fm(genie) to m(geom)
+            std::vector<GHepParticle> HadronProd = hadronprop->Propagate(p,pclass);
+            for ( auto & hpr : HadronProd ) {
+              if ( hpr.E()>spline_Erange.min ) {  
+                if ( pdg::IsTau(TMath::Abs(hpr.Pdg())) ) {
+                  cout << "One tau from hadron: " << p->Pdg() << endl;
+                  std::vector<GHepParticle> TauProd = tauprop->Propagate(&hpr);
+                  for ( auto & tpr : TauProd ) {
+                    if ( tpr.E()>spline_Erange.min ) {  
+                      if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutTau.push_back(tpr);
+                      else SecNu.push_back(tpr);
+                    }
+                  }
+                }
+                else SecNu.push_back(hpr);
+              }
             }
           }
         }
@@ -335,7 +368,7 @@ void GetCommandLineArgs(int argc, char ** argv)
       if(opt.compare("--costheta")==0){   
         i++;
         LOG("ComputeAttenuation", pINFO) << "Reading neutrino angle";
-        vector<string> saux = utils::str::Split(argv[i], ",");
+        std::vector<string> saux = utils::str::Split(argv[i], ",");
         if      (saux.size()==1) {
           gOptCthmin = gOptCthmax = atof(saux[0].c_str());
         }
@@ -351,7 +384,7 @@ void GetCommandLineArgs(int argc, char ** argv)
       if(opt.compare("--energy")==0){   
         i++;
         LOG("ComputeAttenuation", pINFO) << "Reading neutrino min energy";
-        vector<string> saux = utils::str::Split(argv[i], ",");
+        std::vector<string> saux = utils::str::Split(argv[i], ",");
         if      (saux.size()==1) {
           gOptEmin = gOptEmax = atof(saux[0].c_str());
         }
@@ -372,7 +405,7 @@ void GetCommandLineArgs(int argc, char ** argv)
       if(opt.compare("--detector-position")==0){
         i++; 
         LOG("ComputeAttenuation", pINFO) << "Reading detector pos";
-        vector<string> saux = utils::str::Split(argv[i], ",");
+        std::vector<string> saux = utils::str::Split(argv[i], ",");
         if (saux.size()==3) {
           gOptDetPos[0] = atof(saux[0].c_str());
           gOptDetPos[1] = atof(saux[1].c_str());

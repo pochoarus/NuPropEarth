@@ -43,7 +43,7 @@ int main (int argc, char** argv)
 
   LOG("BuildEarth", pDEBUG) << pathxml << "  " << pathroot;
 
-  vector<XmlLayer> xmllayers;
+  std::vector<XmlLayer> xmllayers;
 
   int auxpdg = 0;
 
@@ -73,7 +73,7 @@ int main (int argc, char** argv)
       auxlayer.radius = stof(utils::str::TrimSpaces((const char *)xradius));
 
       xmlChar * xdensity = xmlTextReaderGetAttribute(reader,(const xmlChar*)"density");
-      vector<string> sdensity = utils::str::Split(utils::str::TrimSpaces((const char *)xdensity), ",");
+      std::vector<string> sdensity = utils::str::Split(utils::str::TrimSpaces((const char *)xdensity), ",");
       assert(sdensity.size()==4);
       for ( int i=0 ; i<4; i++ ) auxlayer.density[i] = stof(sdensity[i]);
 
@@ -94,7 +94,7 @@ int main (int argc, char** argv)
 
   LOG("BuildEarth", pDEBUG) << fREarth_km;
 
-  vector<Layer> layers;
+  std::vector<Layer> layers;
   
   double rmean = 0.;
   double step  = 100.;

@@ -16,7 +16,7 @@ TauPropagation::TauPropagation(string ptype, int seed, GeomAnalyzerI * gd) {
 
   LOG("TauPropagation", pDEBUG) << "Initializing TAUOLA...";
   Tauola::initialize();
-  Tauola::setSeed(seed,seed,seed);
+  Tauola::setSeed(seed,0,0);
   mtau         = Tauola::getTauMass();        //use this mass to avoid energy conservation warning in tauola
   d_lifetime   = Tauola::tau_lifetime/(constants::kLightSpeed/(units::millimeter/units::nanosecond)); //lifetime in ns
   polarization = 1;                           //tau-(P=-1) & tau+(P=-1) however in tauola its is fliped
@@ -62,7 +62,7 @@ TauPropagation::TauPropagation(string ptype, int seed, GeomAnalyzerI * gd) {
 
 }
 
-vector<PROPOSAL::Components::Component> TauPropagation::GetComponent(map<int,double> composition) {
+std::vector<PROPOSAL::Components::Component> TauPropagation::GetComponent(map<int,double> composition) {
 
   NaturalIsotopes * iso = NaturalIsotopes::Instance();
 
@@ -79,7 +79,7 @@ vector<PROPOSAL::Components::Component> TauPropagation::GetComponent(map<int,dou
     }
   }
 
-  vector<PROPOSAL::Components::Component> component;
+  std::vector<PROPOSAL::Components::Component> component;
   for ( auto c : composition ) {
     int    PdgCode  = c.first;
     int    Z        = pdg::IonPdgCodeToZ(PdgCode);
@@ -98,8 +98,8 @@ vector<PROPOSAL::Components::Component> TauPropagation::GetComponent(map<int,dou
 
 void TauPropagation::ConfigProposal(GeomAnalyzerI * gd) {
 
-  vector<shared_ptr<const PROPOSAL::Geometry>> vgeolayers;
-  vector<shared_ptr<const PROPOSAL::Medium>> vmedlayers;
+  std::vector<shared_ptr<const PROPOSAL::Geometry>> vgeolayers;
+  std::vector<shared_ptr<const PROPOSAL::Medium>> vmedlayers;
 
   //numbers extracted from proposal medium definitions
   map<string,Ionisation_Constants> ion_const;
@@ -109,7 +109,7 @@ void TauPropagation::ConfigProposal(GeomAnalyzerI * gd) {
 
   TLorentzVector p4(0,0,1,1);
   TLorentzVector x4(0,0,0,0);
-  vector< pair<double, const TGeoMaterial*> > MatLengths = gd->ComputeMatLengths(x4,p4);
+  std::vector< pair<double, const TGeoMaterial*> > MatLengths = gd->ComputeMatLengths(x4,p4);
 
   double lin  = 0;
   double lout = 0;
@@ -151,7 +151,7 @@ void TauPropagation::ConfigProposal(GeomAnalyzerI * gd) {
   sec_def.cut_settings.SetEcut(-1);
   sec_def.cut_settings.SetVcut(0.001);
 
-  vector<PROPOSAL::Sector::Definition> sectors;
+  std::vector<PROPOSAL::Sector::Definition> sectors;
   for (unsigned int i=0; i<vgeolayers.size(); i++ ) {
     sec_def.SetMedium(vmedlayers[i]);
     sec_def.SetGeometry(vgeolayers[i]);
@@ -187,7 +187,7 @@ void TauPropagation::ComputeDepth(GHepParticle * p, double &avgrho, double &totl
 }
 
 
-vector<GHepParticle> TauPropagation::Propagate(GHepParticle * tau) { 
+std::vector<GHepParticle> TauPropagation::Propagate(GHepParticle * tau) { 
 
   int pdgi = tau->Pdg();
 
@@ -318,7 +318,7 @@ vector<GHepParticle> TauPropagation::Propagate(GHepParticle * tau) {
 
   double momf = TMath::Sqrt( ef*ef - mtau*mtau );
 
-  vector<GHepParticle> PropProd;
+  std::vector<GHepParticle> PropProd;
   if (idec==1) PropProd = Decay( pdgi, vxf, vyf, vzf, tf, dxf*momf, dyf*momf, dzf*momf, ef );
   else         PropProd.push_back(GHepParticle(pdgi,kIStUndefined,-1,-1,-1,-1,dxf*momf,dyf*momf,dzf*momf,ef,vxf,vyf,vzf,tf));
 
@@ -327,7 +327,7 @@ vector<GHepParticle> TauPropagation::Propagate(GHepParticle * tau) {
 }
 
 
-vector<GHepParticle> TauPropagation::Decay(double pdg, double vx, double vy, double vz, double t, double px, double py, double pz, double e) {
+std::vector<GHepParticle> TauPropagation::Decay(double pdg, double vx, double vy, double vz, double t, double px, double py, double pz, double e) {
 
   //decay tau
   TauolaHEPEVTEvent * Tauola_evt = new TauolaHEPEVTEvent();
@@ -335,7 +335,7 @@ vector<GHepParticle> TauPropagation::Decay(double pdg, double vx, double vy, dou
   Tauola_evt->addParticle(Tauola_tau);
   Tauola::decayOne(Tauola_tau,true,0.,0.,polarization);
 
-  vector<GHepParticle> DecProd;
+  std::vector<GHepParticle> DecProd;
   
   for ( int sec=1; sec<Tauola_evt->getParticleCount(); sec++ ) {
     int spdg   = Tauola_evt->getParticle(sec)->getPdgID();

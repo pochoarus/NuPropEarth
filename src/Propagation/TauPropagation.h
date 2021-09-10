@@ -38,15 +38,15 @@ namespace genie {
       TauPropagation(string ptype, int seed, GeomAnalyzerI * gd);
      ~TauPropagation();
 
-      vector<GHepParticle> Propagate(GHepParticle * tau );
+      std::vector<GHepParticle> Propagate(GHepParticle * tau );
 
 
     private :
 
-      vector<GHepParticle> Decay(double pdg, double vx, double vy, double vz, double t, double px, double py, double pz, double e);
+      std::vector<GHepParticle> Decay(double pdg, double vx, double vy, double vz, double t, double px, double py, double pz, double e);
 
       void ComputeDepth(GHepParticle * p, double &avgrho, double &lengthi);
-      vector<PROPOSAL::Components::Component> GetComponent(map<int,double> composition);
+      std::vector<PROPOSAL::Components::Component> GetComponent(map<int,double> composition);
       void ConfigProposal(GeomAnalyzerI * gd);
 
       RandomGen * rnd;

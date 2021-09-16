@@ -166,7 +166,7 @@ int main(int argc, char** argv)
   GHepParticle * Nu_In = new GHepParticle();
   GHepParticle * Nu_Out = new GHepParticle();
   std::vector<GHepParticle> SecNu;
-  std::vector<GHepParticle> OutTau;
+  std::vector<GHepParticle> OutPart;
 
   int NNu = 0;
   NIntCC = 0;
@@ -240,7 +240,7 @@ int main(int argc, char** argv)
           std::vector<GHepParticle> TauProd = tauprop->Propagate(p);
           for ( auto & tpr : TauProd ) {
             if ( tpr.E()>spline_Erange.min ) {  
-              if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutTau.push_back(tpr);
+              if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr);
               else SecNu.push_back(tpr);
             }
           }
@@ -258,12 +258,13 @@ int main(int argc, char** argv)
                   std::vector<GHepParticle> TauProd = tauprop->Propagate(&hpr);
                   for ( auto & tpr : TauProd ) {
                     if ( tpr.E()>spline_Erange.min ) {  
-                      if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutTau.push_back(tpr);
+                      if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr);
                       else SecNu.push_back(tpr);
                     }
                   }
                 }
-                else SecNu.push_back(hpr);
+                else if ( pdg::IsNeutrino(TMath::Abs(hpr.Pdg())) ) SecNu.push_back(hpr);
+                else OutPart.push_back(hpr);
               }
             }
           }
@@ -283,12 +284,12 @@ int main(int argc, char** argv)
 
     if ( SecNu.size()==0 ) {
       LOG("ComputeAttenuation", pDEBUG) << " ----> No more secondary neutrinos";
-      for (unsigned int i=0; i<OutTau.size(); i++) {
-        LOG("ComputeAttenuation", pDEBUG) << " ----> Tau: Goodbye Earth!!!";
-        FillParticle(&OutTau[i],Out_Pdg,Out_P4[0],Out_P4[1],Out_P4[2],Out_P4[3],Out_X4[0],Out_X4[1],Out_X4[2],Out_X4[3]);
+      for (unsigned int i=0; i<OutPart.size(); i++) {
+        LOG("ComputeAttenuation", pDEBUG) << " ----> " << Out_Pdg << ": Goodbye Earth!!!";
+        FillParticle(&OutPart[i],Out_Pdg,Out_P4[0],Out_P4[1],Out_P4[2],Out_P4[3],Out_X4[0],Out_X4[1],Out_X4[2],Out_X4[3]);
         outflux->Fill();
       }
-      OutTau.clear();
+      OutPart.clear();
       NInt = 0;
       NIntCC = 0;
       NIntNC = 0;

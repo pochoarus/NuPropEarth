@@ -17,6 +17,8 @@ HadronPropagation::HadronPropagation(GeomAnalyzerI * gd) {
 
   fPythia = TPythia6::Instance();
 
+  PdgDB = TDatabasePDG::Instance();
+
 }
 
 
@@ -115,9 +117,9 @@ std::vector<GHepParticle> HadronPropagation::Propagate(GHepParticle * hadron, st
 
   }
 
-  LOG("HadronPropagation", pDEBUG) << "After decay: " << hadron->Pdg() << ", E = " << hadron->E() << " GeV" << ", idec = " << idec;
+  LOG("HadronPropagation", pDEBUG) << "After decay: " << pdg << ", E = " << e << " GeV" << ", idec = " << idec;
   LOG("HadronPropagation", pDEBUG) << "depth0 = " << depth0 << "  depthi = " << depthi << " -> " << depth0-depthi; 
-  LOG("HadronPropagation", pDEBUG) << "  Position   = [ " << hadron->Vx() << " m, " << hadron->Vy() << " m, " << hadron->Vz() << " m, " << hadron->Vt() << " s ]";
+  LOG("HadronPropagation", pDEBUG) << "  Position   = [ " << vx << " m, " << vy << " m, " << vz << " m, " << t << " s ]";
   LOG("HadronPropagation", pDEBUG) << "  Direction  = [ " << dx << " , " << dy << " , " << dz << " ]";
 
 
@@ -127,6 +129,7 @@ std::vector<GHepParticle> HadronPropagation::Propagate(GHepParticle * hadron, st
     LOG("HadronPropagation", pDEBUG) << "Reached the surface";  
     PropProd.push_back(GHepParticle(pdg,kIStUndefined,-1,-1,-1,-1,dx*mom,dy*mom,dz*mom,e,vx,vy,vz,t));
   }
+
   return PropProd;
 
 }
@@ -152,13 +155,22 @@ std::vector<GHepParticle> HadronPropagation::Decay(double pdg, double kf, double
     if (particle->GetKS()!=1) continue;
     int spdg   = particle->GetKF();
     double se  = particle->GetEnergy();
-    if ( pdg::IsNeutrino(TMath::Abs(spdg)) || pdg::IsTau(TMath::Abs(spdg)) ) {
+    
+    bool fill = false;
+    if ( pdg::IsNeutrino(TMath::Abs(spdg)) || pdg::IsTau(TMath::Abs(spdg)) ) fill = true;
+    else {
+      TParticlePDG * partinfo = PdgDB->GetParticle(spdg);
+      string pclass = partinfo->ParticleClass();
+      if( pclass=="CharmedMeson" || pclass=="CharmedBaryon" ) fill = true;
+    }
+
+    if (fill) {
       double spx = particle->GetPx();
       double spy = particle->GetPy();
       double spz = particle->GetPz();
-      LOG("TauPropagation", pDEBUG) << "Product: " << spdg << ", E = " << se << " GeV";
-      LOG("TauPropagation", pDEBUG) << "  Position   = [ " << vx << " m, " << vy << " m, " << vz << " m, " << t << " s ]";
-      LOG("TauPropagation", pDEBUG) << "  Direction  = [ " << spx/se << " , " << spy/se << " , " << spz/se << " ]";
+      LOG("HadronPropagation", pDEBUG) << "Product: " << spdg << ", E = " << se << " GeV";
+      LOG("HadronPropagation", pDEBUG) << "  Position   = [ " << vx << " m, " << vy << " m, " << vz << " m, " << t << " s ]";
+      LOG("HadronPropagation", pDEBUG) << "  Direction  = [ " << spx/se << " , " << spy/se << " , " << spz/se << " ]";
       DecProd.push_back(GHepParticle(spdg,kIStUndefined,-1,-1,-1,-1,spx,spy,spz,se,vx,vy,vz,t));
     }
   }

@@ -11,6 +11,7 @@
 #include <TPythia6.h>
 #include <TMCParticle.h>
 #include <TClonesArray.h>
+#include <TDatabasePDG.h>
 
 
 using namespace genie;
@@ -40,6 +41,7 @@ namespace genie {
       GeomAnalyzerI * geom_driver;
 
       TPythia6     * fPythia;
+      TDatabasePDG * PdgDB;
 
 
   };

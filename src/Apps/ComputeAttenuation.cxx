@@ -66,6 +66,7 @@ double          gOptDetPos[3] = { 0., 0., 0. }; //Detector position at center of
 double          gOptRadius = 0.; //Detector Radius (radius of a cylindrical shape) originally a point
 double          gOptHeight = 0.; //Detector height (height of the cylinder centerd at gOptDetPos[2]) originally a point
 string          gOptTauProp = ""; //"","NOELOSS","TAUSIC-ALLM","TAUSIC-BS","PROPOSAL"
+bool            gOptHadronProp = true;
 
 
 const int NMAXINT = 100;
@@ -229,14 +230,14 @@ int main(int argc, char** argv)
 
         if ( p->E()<=spline_Erange.min || p->Status()!=kIStStableFinalState ) continue;
 
+        p->SetPosition( X4.X()+p->Vx()*1e-15, X4.Y()+p->Vy()*1e-15, X4.Z()+p->Vz()*1e-15, X4.T()+p->Vt() ); //position -> passing from fm(genie) to m(geom)
+
         if ( pdg::IsNeutrino(TMath::Abs(p->Pdg())) ) {
           LOG("ComputeAttenuation", pDEBUG) << p->Pdg() << " " << p->E();
           p->SetEnergy( TMath::Sqrt(p->Px()*p->Px()+p->Py()*p->Py()+p->Pz()*p->Pz()) ); //not using E to avoid problems with neutrinos from pythia not on shell
-          p->SetPosition( X4.X()+p->Vx()*1e-15, X4.Y()+p->Vy()*1e-15, X4.Z()+p->Vz()*1e-15, X4.T()+p->Vt() ); //position -> passing from fm(genie) to m(geom)
           SecNu.push_back(*p);
         }
         else if ( pdg::IsTau(TMath::Abs(p->Pdg())) ) {
-          p->SetPosition( X4.X()+p->Vx()*1e-15, X4.Y()+p->Vy()*1e-15, X4.Z()+p->Vz()*1e-15, X4.T()+p->Vt() ); //position -> passing from fm(genie) to m(geom)
           std::vector<GHepParticle> TauProd = tauprop->Propagate(p);
           for ( auto & tpr : TauProd ) {
             if ( tpr.E()>spline_Erange.min ) {  
@@ -245,17 +246,17 @@ int main(int argc, char** argv)
             }
           }
         }
-        else {
+        else if (gOptHadronProp) {
+
           TParticlePDG * partinfo = PdgDB->GetParticle(p->Pdg());
           string pclass = partinfo->ParticleClass();
-          if( pclass=="B-Meson" || pclass=="B-Baryon" || pclass=="CharmedMeson" || pclass=="CharmedBaryon" ) { 
-            p->SetPosition( X4.X()+p->Vx()*1e-15, X4.Y()+p->Vy()*1e-15, X4.Z()+p->Vz()*1e-15, X4.T()+p->Vt() ); //position -> passing from fm(genie) to m(geom)
-            std::vector<GHepParticle> HadronProd = hadronprop->Propagate(p,pclass);
-            for ( auto & hpr : HadronProd ) {
-              if ( hpr.E()>spline_Erange.min ) {  
-                if ( pdg::IsTau(TMath::Abs(hpr.Pdg())) ) {
-                  cout << "One tau from hadron: " << p->Pdg() << endl;
-                  std::vector<GHepParticle> TauProd = tauprop->Propagate(&hpr);
+
+          if( pclass=="CharmedMeson" || pclass=="CharmedBaryon" ) { 
+            std::vector<GHepParticle> CharmProd = hadronprop->Propagate(p,pclass);
+            for ( auto & cpr : CharmProd ) {
+              if ( cpr.E()>spline_Erange.min ) {  
+                if ( pdg::IsTau(TMath::Abs(cpr.Pdg())) ) {
+                  std::vector<GHepParticle> TauProd = tauprop->Propagate(&cpr);
                   for ( auto & tpr : TauProd ) {
                     if ( tpr.E()>spline_Erange.min ) {  
                       if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr);
@@ -263,12 +264,54 @@ int main(int argc, char** argv)
                     }
                   }
                 }
-                else if ( pdg::IsNeutrino(TMath::Abs(hpr.Pdg())) ) SecNu.push_back(hpr);
-                else OutPart.push_back(hpr);
+                else if ( pdg::IsNeutrino(TMath::Abs(cpr.Pdg())) ) SecNu.push_back(cpr);
+                else OutPart.push_back(cpr);
               }
             }
           }
-        }
+          else if( pclass=="B-Meson" || pclass=="B-Baryon" ) { 
+            std::vector<GHepParticle> BottomProd = hadronprop->Propagate(p,pclass);
+            for ( auto & bpr : BottomProd ) {
+              if ( bpr.E()>spline_Erange.min ) {  
+                if ( pdg::IsTau(TMath::Abs(bpr.Pdg())) ) {
+                  std::vector<GHepParticle> TauProd = tauprop->Propagate(&bpr);
+                  for ( auto & tpr : TauProd ) {
+                    if ( tpr.E()>spline_Erange.min ) {  
+                      if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr);
+                      else SecNu.push_back(tpr);
+                    }
+                  }
+                }
+                else if ( pdg::IsNeutrino(TMath::Abs(bpr.Pdg())) ) SecNu.push_back(bpr);
+                else {
+                  partinfo = PdgDB->GetParticle(bpr.Pdg());
+                  pclass = partinfo->ParticleClass();
+                  if( pclass=="CharmedMeson" || pclass=="CharmedBaryon" ) { 
+                    std::vector<GHepParticle> CharmProd = hadronprop->Propagate(&bpr,pclass);
+                    for ( auto & cpr : CharmProd ) {
+                      if ( cpr.E()>spline_Erange.min ) {  
+                        if ( pdg::IsTau(TMath::Abs(cpr.Pdg())) ) {
+                          std::vector<GHepParticle> TauProd = tauprop->Propagate(&cpr);
+                          for ( auto & tpr : TauProd ) {
+                            if ( tpr.E()>spline_Erange.min ) {  
+                              if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr);
+                              else SecNu.push_back(tpr);
+                            }
+                          }
+                        }
+                        else if ( pdg::IsNeutrino(TMath::Abs(cpr.Pdg())) ) SecNu.push_back(cpr);
+                        else OutPart.push_back(cpr);
+                      }
+                    }
+                  }
+                  else OutPart.push_back(bpr);
+                }
+              }
+            }
+          } //bottom prop
+        
+        } //hadron prop
+
 
       }
 
@@ -432,6 +475,12 @@ void GetCommandLineArgs(int argc, char ** argv)
         LOG("ComputeAttenuation", pINFO) << "Enable tau propagation";
         gOptTauProp = argv[i];  
       }      
+      if(opt.compare("--no-hadron-propagation")==0){ 
+        i++; 
+        LOG("ComputeAttenuation", pINFO) << "Enable tau propagation";
+        gOptHadronProp = false;  
+      }      
+
     }
   }
 
@@ -504,6 +553,7 @@ void GetCommandLineArgs(int argc, char ** argv)
      << "\n\t Radius       = " << gOptRadius << " m"
      << "\n\t Height       = " << gOptHeight << " m"
      << "\n\t TauProp      = " << gOptTauProp
+     << "\n\t HadronProp   = " << gOptHadronProp
      << "\n\n";
 
 

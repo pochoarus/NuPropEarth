@@ -476,8 +476,7 @@ void GetCommandLineArgs(int argc, char ** argv)
         gOptTauProp = argv[i];  
       }      
       if(opt.compare("--no-hadron-propagation")==0){ 
-        i++; 
-        LOG("ComputeAttenuation", pINFO) << "Enable tau propagation";
+        LOG("ComputeAttenuation", pINFO) << "Disable hadron propagation";
         gOptHadronProp = false;  
       }      
 

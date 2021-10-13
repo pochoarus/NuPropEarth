@@ -218,10 +218,9 @@ double HadronPropagation::HadronInteraction(string pclass, double mass, double E
   double s45 = (xsec_p-45.)/30;  
   double xsec_o = (1.-4.*TMath::Power(s45,2))*342.6 + s45*(2.*s45-1.)*271.6 + s45*(2.*s45+1.)*399.7; //mbarn
 
-  double xsec_h2o = (0.11*xsec_p/1.00784 + 0.89*xsec_o/15.999) * 1e-27; //cm2
+  double xsec_h2o = (0.11*xsec_p/1.00784 + 0.89*xsec_o/15.999); //mbarn
 
-
-  return TMath::Na() * rho * xsec_h2o * 1e2; //1/m 
+  return 1e25 / TMath::Na() / rho / xsec_h2o; //m 
 
 }
 //___________________________________________________________________________

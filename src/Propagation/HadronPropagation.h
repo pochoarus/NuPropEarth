@@ -15,14 +15,15 @@
 
 
 using namespace genie;
+using namespace genie::geometry;
 
 namespace genie {
 
   class HadronPropagation {
 
     public :
-      HadronPropagation(GeomAnalyzerI * gd);
-     ~HadronPropagation();
+      HadronPropagation(ROOTGeomAnalyzer * gd);
+     ~HadronPropagation(){}
 
       std::vector<GHepParticle> Propagate(GHepParticle * hadron, string pclass);
 
@@ -38,7 +39,7 @@ namespace genie {
 
       RandomGen * rnd;
 
-      GeomAnalyzerI * geom_driver;
+      ROOTGeomAnalyzer * geom_driver;
 
       TPythia6     * fPythia;
       TDatabasePDG * PdgDB;

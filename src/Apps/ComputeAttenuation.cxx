@@ -68,7 +68,7 @@ double          gOptHeight = 0.; //Detector height (height of the cylinder cente
 string          gOptTauProp = ""; //"","NOELOSS","TAUSIC-ALLM","TAUSIC-BS","PROPOSAL"
 bool            gOptHadronProp = true;
 
-
+const int NMAXTRIALS = 10;
 const int NMAXINT = 100;
 const Range1D_t spline_Erange = { 1e2, 1e12 }; //energy range limit based on HEDIS splines 
 
@@ -96,13 +96,11 @@ int main(int argc, char** argv)
   }
   LOG("ComputeAttenuation", pNOTICE) << topvol->GetName();
 
-  GeomAnalyzerI * geom_driver = dynamic_cast<GeomAnalyzerI *> (rgeom);
-
   LOG("ComputeAttenuation", pDEBUG) << "Initializing Tau Propagation...";
-  TauPropagation * tauprop = new TauPropagation(gOptTauProp,gOptRanSeed,geom_driver);
+  TauPropagation * tauprop = new TauPropagation(gOptTauProp,gOptRanSeed,rgeom);
 
   LOG("ComputeAttenuation", pDEBUG) << "Initializing Hadron Propagation...";
-  HadronPropagation * hadronprop = new HadronPropagation(geom_driver);
+  HadronPropagation * hadronprop = new HadronPropagation(rgeom);
   TDatabasePDG * PdgDB  = TDatabasePDG::Instance();
 
 
@@ -125,7 +123,7 @@ int main(int argc, char** argv)
   GTRJDriver * trj_driver = new GTRJDriver;
   trj_driver->SetEventGeneratorList(RunOpt::Instance()->EventGeneratorList());
   trj_driver->UseFluxDriver(dynamic_cast<GFluxI *>(flx_driver));
-  trj_driver->UseGeomAnalyzer(geom_driver);
+  trj_driver->UseGeomAnalyzer(rgeom);
 
   LOG("ComputeAttenuation", pDEBUG) << "Configuring GTRJDriver...";
   trj_driver->Configure(spline_Erange.min,spline_Erange.max);
@@ -136,7 +134,7 @@ int main(int argc, char** argv)
   int In_Pdg,Out_Pdg;
   double In_X4[4],Out_X4[4];
   double In_P4[4],Out_P4[4];
-  int NInt,NIntCC,NIntNC;
+  int NInt;
   int SctID[NMAXINT];
   int IntID[NMAXINT];
   int Tgt[NMAXINT];
@@ -155,8 +153,6 @@ int main(int argc, char** argv)
   outflux->Branch("Out_X4",  Out_X4,   "Out_X4[4]/D"   );       
   outflux->Branch("Out_P4",  Out_P4,   "Out_P4[4]/D"   );       
   outflux->Branch("NInt",    &NInt,    "NInt/I"        );       
-  outflux->Branch("NIntCC",  &NIntCC,  "NIntCC/I"      );       
-  outflux->Branch("NIntNC",  &NIntNC,  "NIntNC/I"      );       
   outflux->Branch("SctID",   SctID,    "SctID[NInt]/I" );       
   outflux->Branch("IntID",   IntID,    "IntID[NInt]/I" );       
   outflux->Branch("Tgt",     Tgt,      "Tgt[NInt]/I"   );        
@@ -164,14 +160,11 @@ int main(int argc, char** argv)
 
   LOG("ComputeAttenuation", pDEBUG) << "Event loop...";
 
-  GHepParticle * Nu_In = new GHepParticle();
-  GHepParticle * Nu_Out = new GHepParticle();
   std::vector<GHepParticle> SecNu;
   std::vector<GHepParticle> OutPart;
 
+  int trial = 0; //number of tries for same event
   int NNu = 0;
-  NIntCC = 0;
-  NIntNC = 0;
   NInt = 0;
   while ( NNu<gOptNev ) {
 
@@ -183,13 +176,11 @@ int main(int argc, char** argv)
       SecNu.erase(SecNu.begin()); //remove first entry because it is just process
     }
 
-    EventRecord * event = trj_driver->GenerateEvent();
+    int eventid = trj_driver->GenerateEvent();
 
-    if (NInt==0) {
-      if ( NNu%100==0 ) LOG("ComputeAttenuation", pINFO) << "Event " << NNu << " out of " << gOptNev;
-      Nu_In = flx_driver->GetNeutrino();
-      FillParticle(Nu_In,In_Pdg,In_P4[0],In_P4[1],In_P4[2],In_P4[3],In_X4[0],In_X4[1],In_X4[2],In_X4[3]);
-      influx->Fill();
+    if ( NInt==0 ) {
+      if ( NNu%100==0 ) LOG("ComputeAttenuation", pNOTICE) << "Event " << NNu << " out of " << gOptNev;
+      FillParticle(flx_driver->GetNeutrino(),In_Pdg,In_P4[0],In_P4[1],In_P4[2],In_P4[3],In_X4[0],In_X4[1],In_X4[2],In_X4[3]);
     }
 
     LOG("ComputeAttenuation", pDEBUG) << "Shooting Neutrino: " << NNu << "( " << NInt << " ) ----->" ;
@@ -197,7 +188,9 @@ int main(int argc, char** argv)
     LOG("ComputeAttenuation", pDEBUG) << "Postion   = [ " << flx_driver->GetNeutrino()->Vx() << " m, " << flx_driver->GetNeutrino()->Vy() << " m, " << flx_driver->GetNeutrino()->Vz() << " m, " << flx_driver->GetNeutrino()->Vt() << " s ] ";
     LOG("ComputeAttenuation", pDEBUG) << "Direction = [ " << flx_driver->GetNeutrino()->Px()/flx_driver->GetNeutrino()->E() << " , " << flx_driver->GetNeutrino()->Py()/flx_driver->GetNeutrino()->E() << " , " << flx_driver->GetNeutrino()->Pz()/flx_driver->GetNeutrino()->E() << " ]";
 
-    if (event) {
+    if ( eventid==1 ) {
+
+      EventRecord * event = trj_driver->GetEvent();
 
       SctID[NInt] = event->Summary()->ProcInfoPtr()->ScatteringTypeId();
       IntID[NInt] = event->Summary()->ProcInfoPtr()->InteractionTypeId();
@@ -215,9 +208,8 @@ int main(int argc, char** argv)
       LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << X4.X() << " m, " << X4.Y() << " m, " << X4.Z() << " m, " << X4.T() << " s ]";
       LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << P4.Px()/P4.E() << " , " << P4.Py()/P4.E() << " , " << P4.Pz()/P4.E() << " ]";
       LOG("ComputeAttenuation", pDEBUG) << *event;
-      
-      if (IntID[NInt]==2) NIntCC++;
-      else                NIntNC++;
+      assert(sqrt(X4.X()*X4.X()+X4.Y()*X4.Y()+X4.Z()*X4.Z())<6372e3);
+
       NInt++;
 
       GHepParticle * p = 0;
@@ -226,26 +218,27 @@ int main(int argc, char** argv)
       while ( (p=(GHepParticle *)piter.Next()) ) {
         
         //quit when it reachs the hadronic shower to avoid counting neutrinos from top
-        //if ( abs(p->Pdg())==2000000001 ) break; 
+        if ( abs(p->Pdg())==2000000001 ) break; 
 
         if ( p->E()<=spline_Erange.min || p->Status()!=kIStStableFinalState ) continue;
 
         p->SetPosition( X4.X()+p->Vx()*1e-15, X4.Y()+p->Vy()*1e-15, X4.Z()+p->Vz()*1e-15, X4.T()+p->Vt() ); //position -> passing from fm(genie) to m(geom)
 
         if ( pdg::IsNeutrino(TMath::Abs(p->Pdg())) ) {
-          LOG("ComputeAttenuation", pDEBUG) << p->Pdg() << " " << p->E();
           p->SetEnergy( TMath::Sqrt(p->Px()*p->Px()+p->Py()*p->Py()+p->Pz()*p->Pz()) ); //not using E to avoid problems with neutrinos from pythia not on shell
-          SecNu.push_back(*p);
+          SecNu.push_back(*p); // X -> nu
         }
+
         else if ( pdg::IsTau(TMath::Abs(p->Pdg())) ) {
           std::vector<GHepParticle> TauProd = tauprop->Propagate(p);
           for ( auto & tpr : TauProd ) {
-            if ( tpr.E()>spline_Erange.min ) {  
-              if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr);
-              else SecNu.push_back(tpr);
+            if ( tpr.E()>spline_Erange.min ) {                
+              if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr); // X -> tau
+              else SecNu.push_back(tpr); // X -> tau -> nu
             }
           }
         }
+
         else if (gOptHadronProp) {
 
           TParticlePDG * partinfo = PdgDB->GetParticle(p->Pdg());
@@ -259,17 +252,19 @@ int main(int argc, char** argv)
                   std::vector<GHepParticle> TauProd = tauprop->Propagate(&cpr);
                   for ( auto & tpr : TauProd ) {
                     if ( tpr.E()>spline_Erange.min ) {  
-                      if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr);
-                      else SecNu.push_back(tpr);
+                      if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr); // X -> charmed -> tau
+                      else SecNu.push_back(tpr); // X -> charmed -> tau -> nu
                     }
                   }
                 }
-                else if ( pdg::IsNeutrino(TMath::Abs(cpr.Pdg())) ) SecNu.push_back(cpr);
-                else OutPart.push_back(cpr);
+                else if ( pdg::IsNeutrino(TMath::Abs(cpr.Pdg())) ) SecNu.push_back(cpr); // X -> charmed -> nu
+                else OutPart.push_back(cpr); // X -> charmed
               }
             }
           }
+          
           else if( pclass=="B-Meson" || pclass=="B-Baryon" ) { 
+            
             std::vector<GHepParticle> BottomProd = hadronprop->Propagate(p,pclass);
             for ( auto & bpr : BottomProd ) {
               if ( bpr.E()>spline_Erange.min ) {  
@@ -277,12 +272,12 @@ int main(int argc, char** argv)
                   std::vector<GHepParticle> TauProd = tauprop->Propagate(&bpr);
                   for ( auto & tpr : TauProd ) {
                     if ( tpr.E()>spline_Erange.min ) {  
-                      if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr);
-                      else SecNu.push_back(tpr);
+                      if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr); // X -> bottom -> tau
+                      else SecNu.push_back(tpr); // X -> bottom -> tau -> nu
                     }
                   }
                 }
-                else if ( pdg::IsNeutrino(TMath::Abs(bpr.Pdg())) ) SecNu.push_back(bpr);
+                else if ( pdg::IsNeutrino(TMath::Abs(bpr.Pdg())) ) SecNu.push_back(bpr); // X -> bottom -> nu
                 else {
                   partinfo = PdgDB->GetParticle(bpr.Pdg());
                   pclass = partinfo->ParticleClass();
@@ -294,17 +289,17 @@ int main(int argc, char** argv)
                           std::vector<GHepParticle> TauProd = tauprop->Propagate(&cpr);
                           for ( auto & tpr : TauProd ) {
                             if ( tpr.E()>spline_Erange.min ) {  
-                              if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr);
-                              else SecNu.push_back(tpr);
+                              if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr); // X -> bottom -> charm -> tau
+                              else SecNu.push_back(tpr); // X -> bottom -> charm -> tau -> nu
                             }
                           }
                         }
-                        else if ( pdg::IsNeutrino(TMath::Abs(cpr.Pdg())) ) SecNu.push_back(cpr);
-                        else OutPart.push_back(cpr);
+                        else if ( pdg::IsNeutrino(TMath::Abs(cpr.Pdg())) ) SecNu.push_back(cpr); // X -> bottom -> charm  -> nu
+                        else OutPart.push_back(cpr); // X -> bottom -> charm 
                       }
                     }
                   }
-                  else OutPart.push_back(bpr);
+                  else OutPart.push_back(bpr); // X -> bottom
                 }
               }
             }
@@ -318,24 +313,39 @@ int main(int argc, char** argv)
       delete event;
 
     }
+    else if ( eventid==2 ) {
+      LOG("ComputeAttenuation", pDEBUG) << "Neutrino exiting!!!";
+      OutPart.push_back(*flx_driver->GetNeutrino());      
+    }
     else {
-      LOG("ComputeAttenuation", pDEBUG) << " ----> Neutrino: Goodbye Earth!!!";
-      Nu_Out = flx_driver->GetNeutrino();
-      FillParticle(Nu_Out,Out_Pdg,Out_P4[0],Out_P4[1],Out_P4[2],Out_P4[3],Out_X4[0],Out_X4[1],Out_X4[2],Out_X4[3]);
-      outflux->Fill();
+      LOG("ComputeAttenuation", pWARN) << "Failed trial: " << trial;
+      if ( trial==NMAXTRIALS-1 ){
+        LOG("ComputeAttenuation", pFATAL) << "Neutrinos can not be be generated" ;
+        LOG("ComputeAttenuation", pFATAL) << "Trials: " << trial ;
+        exit(1);
+      }      
+      SecNu.clear();
+      OutPart.clear();
+      NInt = 0;
+      trial++;
+      continue;
     }
 
     if ( SecNu.size()==0 ) {
-      LOG("ComputeAttenuation", pDEBUG) << " ----> No more secondary neutrinos";
+      LOG("ComputeAttenuation", pDEBUG) << "No more secondary neutrinos!!!";
+      influx->Fill();
+      LOG("ComputeAttenuation", pINFO) << "Summary: ";
+      LOG("ComputeAttenuation", pINFO) << In_Pdg << " ----> ((( )))";
       for (unsigned int i=0; i<OutPart.size(); i++) {
-        LOG("ComputeAttenuation", pDEBUG) << " ----> " << Out_Pdg << ": Goodbye Earth!!!";
         FillParticle(&OutPart[i],Out_Pdg,Out_P4[0],Out_P4[1],Out_P4[2],Out_P4[3],Out_X4[0],Out_X4[1],Out_X4[2],Out_X4[3]);
         outflux->Fill();
+        LOG("ComputeAttenuation", pINFO) << "         ((( ))) ----> " << Out_Pdg;
       }
+      LOG("ComputeAttenuation", pINFO) << "Total In: " << influx->GetEntries();
+      LOG("ComputeAttenuation", pINFO) << "Total Out: " << outflux->GetEntries();
       OutPart.clear();
       NInt = 0;
-      NIntCC = 0;
-      NIntNC = 0;
+      trial = 0;
       NNu++;
     }
 
@@ -346,7 +356,6 @@ int main(int argc, char** argv)
   outfile->Close();
 
   // clean-up
-  delete geom_driver;
   delete flx_driver;
   delete trj_driver;
 

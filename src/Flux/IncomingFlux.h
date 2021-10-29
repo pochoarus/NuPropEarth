@@ -19,8 +19,6 @@
 using namespace std;
 using namespace genie;
 
-const double fREarth_m = 6371e3; //we consider the water/ice layer
-
 namespace genie {
   namespace flux  {
 

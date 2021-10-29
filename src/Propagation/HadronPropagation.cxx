@@ -8,7 +8,7 @@ extern "C" {
   void tau_transport_sw_(double *VX,double *VY,double *VZ,double *CX,double *CY,double *CZ,double *E,double *Depth,double *T,double *Rho,int *flag1,int *flag2,double *VXF,double *VYF,double *VZF,double *CXF,double *CYF,double *CZF,double *EF,double *DepthF,double *TF, int *IDEC, int *ITFLAG, double *TAUTI, double *TAUTF);
 }
 
-HadronPropagation::HadronPropagation(GeomAnalyzerI * gd) {
+HadronPropagation::HadronPropagation(ROOTGeomAnalyzer * gd) {
 
   geom_driver = gd;
 
@@ -20,7 +20,6 @@ HadronPropagation::HadronPropagation(GeomAnalyzerI * gd) {
   PdgDB = TDatabasePDG::Instance();
 
 }
-
 
 void HadronPropagation::ComputeDepth(GHepParticle * p, double &avgrho, double &totlength) { //length(m) depth(g/cm2)
 
@@ -229,7 +228,6 @@ double HadronPropagation::HadronInelasticity(string pclass) {
   double y = 0.;
   
   // from https://inspirehep.net/literature/1707889 (section 5.2.3)
-  RandomGen * rnd = RandomGen::Instance();
   if      (pclass=="CharmedMeson" ) y = rnd->RndGen().Gaus(0.56,0.2);
   else if (pclass=="CharmedBaryon") y = rnd->RndGen().Gaus(0.59,0.2);
   else if (pclass=="B-Meson")       y = rnd->RndGen().Gaus(0.80,0.2);

@@ -60,6 +60,8 @@
   <priority msgstream="DFRHadronicVtx">        WARN  </priority>
   <priority msgstream="DFRKinematics">         WARN  </priority>
   <priority msgstream="Decay">                 WARN </priority>
+  <priority msgstream="ResonanceDecay">        WARN </priority>
+  <priority msgstream="Pythia6Decay">          WARN </priority>
   <priority msgstream="DISSF">                 WARN </priority>
   <priority msgstream="DISXSec">               WARN </priority>
   <priority msgstream="DISCharmXSec">          WARN   </priority>
@@ -85,7 +87,7 @@
   <priority msgstream="Flux">                  WARN </priority>
   <priority msgstream="FMap">                  WARN   </priority>
   <priority msgstream="FragmRecUtils">         WARN </priority>
-  <priority msgstream="GEVGDriver">            WARN </priority>
+  <priority msgstream="GEVGDriver">            ERROR </priority>
   <priority msgstream="GMCJDriver">            WARN </priority>
   <priority msgstream="GEVGPool">              WARN   </priority>
   <priority msgstream="GMCJob">                WARN   </priority>
@@ -196,19 +198,17 @@
   <priority msgstream="HEDISStrucFunc">        INFO </priority>
   <priority msgstream="HEDISKinematics">       WARN </priority>
   <priority msgstream="HEDISGenerator">        WARN </priority>
-  <priority msgstream="LeptoHad">              WARN </priority>
-  <priority msgstream="GLRESXSec">             WARN   </priority>
-  <priority msgstream="GLRESCohXSec">          WARN  </priority>
-  <priority msgstream="GLRESAtomicPXSec">      WARN   </priority>
-  <priority msgstream="GLRESInelasticPXSec">   WARN  </priority>
-  <priority msgstream="GLRESCoherentPXSec">    WARN   </priority>
-  <priority msgstream="GLRESStrucFunc">        WARN   </priority>
-  <priority msgstream="GLRESKinematics">       WARN   </priority>
-  <priority msgstream="GLRESCohKinematics">    WARN   </priority>
-  <priority msgstream="GLRESGenerator">        WARN   </priority>
-  <priority msgstream="GLRESCohGenerator">     WARN   </priority>
+  <priority msgstream="LeptoHad">              ERROR </priority>
+  <priority msgstream="HELeptonXSec">          WARN </priority>
+  <priority msgstream="HELeptonKinematics">    WARN </priority>
+  <priority msgstream="GLRESPXSec">            WARN </priority>
+  <priority msgstream="GLRESGenerator">        WARN </priority>
+  <priority msgstream="PhotonRESPXSec">        WARN </priority>
+  <priority msgstream="PhotonRESGenerator">    WARN </priority>
+  <priority msgstream="PhotonCOHPXSec">        WARN </priority>
+  <priority msgstream="PhotonCOHGenerator">    WARN </priority>
 
-  <priority msgstream="gevgen">              DEBUG </priority>
+  <priority msgstream="gevgen">              INFO </priority>
   <priority msgstream="gevgen_dm">           WARN </priority>
   <priority msgstream="gevgen_ndcy">         WARN </priority>
   <priority msgstream="gevgen_atmo">         WARN </priority>
@@ -227,11 +227,11 @@
   <priority msgstream="gmkglrersf">          INFO   </priority>
 
   <!-- NuPropEarth -->
-  <priority msgstream="ComputeAttenuation">  INFO  </priority>
+  <priority msgstream="ComputeAttenuation">  NOTICE  </priority>
   <priority msgstream="IncomingFlux">        WARN  </priority>                                                          
   <priority msgstream="TauPropagation">      WARN  </priority>                                                          
   <priority msgstream="HadronPropagation">   WARN  </priority>                                                          
   <priority msgstream="GTRJDriver">          WARN  </priority>
-  <priority msgstream="BuildEarth">          DEBUG  </priority>
+  <priority msgstream="BuildEarth">          WARN  </priority>
 
 </messenger_config>

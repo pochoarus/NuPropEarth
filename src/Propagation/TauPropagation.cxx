@@ -8,15 +8,23 @@ extern "C" {
   void tau_transport_sw_(double *VX,double *VY,double *VZ,double *CX,double *CY,double *CZ,double *E,double *Depth,double *T,double *Rho,int *flag1,int *flag2,double *VXF,double *VYF,double *VZF,double *CXF,double *CYF,double *CZF,double *EF,double *DepthF,double *TF, int *IDEC, int *ITFLAG, double *TAUTI, double *TAUTF);
 }
 
-TauPropagation::TauPropagation(string ptype, int seed, GeomAnalyzerI * gd) {
+RandomGen * taurnd;
+
+double TauRandomGenerator() { return taurnd->RndGen().Rndm(); }
+
+TauPropagation::TauPropagation(string ptype, int seed, ROOTGeomAnalyzer * gd) {
 
   tauproptype = ptype;
 
   geom_driver = gd;
 
+  LOG("TauPropagation", pDEBUG) << "Initializing Random...";
+  taurnd = RandomGen::Instance();
+
   LOG("TauPropagation", pDEBUG) << "Initializing TAUOLA...";
   Tauola::initialize();
   Tauola::setSeed(seed,0,0);
+  Tauola::setRandomGenerator(TauRandomGenerator);
   mtau         = Tauola::getTauMass();        //use this mass to avoid energy conservation warning in tauola
   d_lifetime   = Tauola::tau_lifetime/(constants::kLightSpeed/(units::millimeter/units::nanosecond)); //lifetime in ns
   polarization = 1;                           //tau-(P=-1) & tau+(P=-1) however in tauola its is fliped
@@ -54,11 +62,8 @@ TauPropagation::TauPropagation(string ptype, int seed, GeomAnalyzerI * gd) {
 
   else if ( tauproptype=="PROPOSAL" ) {
     PROPOSAL::RandomGenerator::Get().SetSeed(seed);
-    ConfigProposal(geom_driver);
+    ConfigProposal();
   }
-
-  LOG("TauPropagation", pDEBUG) << "Initializing Random...";
-  rnd = RandomGen::Instance();
 
 }
 
@@ -96,7 +101,7 @@ std::vector<PROPOSAL::Components::Component> TauPropagation::GetComponent(map<in
 }
 
 
-void TauPropagation::ConfigProposal(GeomAnalyzerI * gd) {
+void TauPropagation::ConfigProposal() {
 
   std::vector<shared_ptr<const PROPOSAL::Geometry>> vgeolayers;
   std::vector<shared_ptr<const PROPOSAL::Medium>> vmedlayers;
@@ -109,7 +114,7 @@ void TauPropagation::ConfigProposal(GeomAnalyzerI * gd) {
 
   TLorentzVector p4(0,0,1,1);
   TLorentzVector x4(0,0,0,0);
-  std::vector< pair<double, const TGeoMaterial*> > MatLengths = gd->ComputeMatLengths(x4,p4);
+  std::vector< pair<double, const TGeoMaterial*> > MatLengths = geom_driver->ComputeMatLengths(x4,p4);
 
   double lin  = 0;
   double lout = 0;
@@ -129,9 +134,9 @@ void TauPropagation::ConfigProposal(GeomAnalyzerI * gd) {
     map<int,double> composition;
     if (mat->IsMixture()) {
       const TGeoMixture * mixt = dynamic_cast <const TGeoMixture*> (mat);
-      for (int i = 0; i < mixt->GetNelements(); i++) composition[gd->GetTargetPdgCode(mixt, i)] = mixt->GetWmixt()[i];
+      for (int i = 0; i < mixt->GetNelements(); i++) composition[geom_driver->GetTargetPdgCode(mixt, i)] = mixt->GetWmixt()[i];
     }
-    else composition[gd->GetTargetPdgCode(mat)] = 1.;
+    else composition[geom_driver->GetTargetPdgCode(mat)] = 1.;
 
     string lname = "";
     if      (mat_name.find("Ice")    != std::string::npos) lname="Ice";
@@ -177,7 +182,6 @@ void TauPropagation::ComputeDepth(GHepParticle * p, double &avgrho, double &totl
   for ( auto sitr : MatLengths ) {
     double length  = sitr.first * 1e2;  //from m(geom) to cm(tau)
     double rho     = sitr.second->GetDensity();
-    LOG("TauPropagation", pDEBUG) << "  Rho = " << rho << " g/cm^3 ; Length = " << length << " cm";
     totlength += length;
     avgrho    += length*rho;
   }
@@ -215,7 +219,7 @@ std::vector<GHepParticle> TauPropagation::Propagate(GHepParticle * tau) {
 
   if      ( tauproptype=="TAUSIC-ALLM" or tauproptype=="TAUSIC-BS" ) {
 
-    double tauti = -TMath::Log( rnd->RndGen().Rndm() ) * d_lifetime; //ns
+    double tauti = -TMath::Log( taurnd->RndGen().Rndm() ) * d_lifetime; //ns
     
     while ( depthi>1 ) { //threshold in 1cm
       double tautf; //remaining lifetime [ns]
@@ -252,7 +256,7 @@ std::vector<GHepParticle> TauPropagation::Propagate(GHepParticle * tau) {
 
     PROPOSAL::Secondaries sec = ProposalTau->Propagate(particle_tau,depthi);
 
-    auto particles = sec.GetSecondaries();
+    auto particles = sec.GetModifyableSecondaries();
 
     int nparticles = particles.size();
     LOG("TauPropagation", pDEBUG) << "nparticles: " << nparticles;
@@ -281,7 +285,7 @@ std::vector<GHepParticle> TauPropagation::Propagate(GHepParticle * tau) {
   }
   else if (tauproptype=="NOELOSS") {
 
-    double tauti = -TMath::Log( rnd->RndGen().Rndm() ) * d_lifetime; //ns
+    double tauti = -TMath::Log( taurnd->RndGen().Rndm() ) * d_lifetime; //ns
 
     dxf = dxi; dyf = dyi; dzf = dzi; ef = ei;
     double d_r  = tauti*(constants::kLightSpeed/(units::centimeter/units::nanosecond)); //cm

@@ -19,6 +19,7 @@
 using namespace Tauolapp;
 
 using namespace genie;
+using namespace genie::geometry;
 
 struct Ionisation_Constants {
   double I;              ///< ionization potential [eV]
@@ -35,11 +36,10 @@ namespace genie {
   class TauPropagation {
 
     public :
-      TauPropagation(string ptype, int seed, GeomAnalyzerI * gd);
-     ~TauPropagation();
+      TauPropagation(string ptype, int seed, ROOTGeomAnalyzer * gd);
+     ~TauPropagation() {}
 
       std::vector<GHepParticle> Propagate(GHepParticle * tau );
-
 
     private :
 
@@ -47,11 +47,9 @@ namespace genie {
 
       void ComputeDepth(GHepParticle * p, double &avgrho, double &lengthi);
       std::vector<PROPOSAL::Components::Component> GetComponent(map<int,double> composition);
-      void ConfigProposal(GeomAnalyzerI * gd);
+      void ConfigProposal();
 
-      RandomGen * rnd;
-
-      GeomAnalyzerI * geom_driver;
+      ROOTGeomAnalyzer * geom_driver;
 
       string tauproptype;
 

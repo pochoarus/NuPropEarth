@@ -11,7 +11,6 @@
 #include "Framework/EventGen/GEVGDriver.h"
 #include "Framework/EventGen/GEVGPool.h"
 #include "Framework/EventGen/GFluxI.h"
-#include "Framework/EventGen/GeomAnalyzerI.h"
 #include "Framework/GHEP/GHepFlags.h"
 #include "Framework/GHEP/GHepParticle.h"
 #include "Framework/Interaction/InitialState.h"
@@ -76,7 +75,7 @@ void GTRJDriver::UseFluxDriver(GFluxI * flux_driver)
   fFluxDriver = flux_driver;
 }
 //___________________________________________________________________________
-void GTRJDriver::UseGeomAnalyzer(GeomAnalyzerI * geom_analyzer)
+void GTRJDriver::UseGeomAnalyzer(ROOTGeomAnalyzer * geom_analyzer)
 {
   fGeomAnalyzer = geom_analyzer;
 }
@@ -134,7 +133,7 @@ void GTRJDriver::Configure(double emin, double emax)
 
 }
 //___________________________________________________________________________
-EventRecord * GTRJDriver::GenerateEvent(void)
+int GTRJDriver::GenerateEvent(void)
 {
 // attempt generating a neutrino interaction by firing a single flux neutrino
 //
@@ -145,9 +144,32 @@ EventRecord * GTRJDriver::GenerateEvent(void)
 
   // Generate a neutrino using the input GFluxI & get current pdgc/p4/x4
   if(!fFluxDriver->GenerateNext()) {
-     LOG("GTRJDriver", pERROR)
+     LOG("GTRJDriver", pFATAL)
          << "*** The flux driver couldn't generate a flux neutrino!!";
-     return 0;
+     exit(1);
+  }
+
+  const TLorentzVector & nup4  = fFluxDriver -> Momentum ();
+  const TLorentzVector & nux4  = fFluxDriver -> Position ();
+  TVector3 udir = nup4.Vect().Unit();
+
+  std::vector< pair<double, const TGeoMaterial*> > MatLengths = fGeomAnalyzer->ComputeMatLengths(nux4,nup4);
+
+  double length = 0;
+  for ( auto sitr : MatLengths ) length += sitr.first;
+  length -= 10; //safety factor of 10 m
+
+  double xf = nux4.X()+length*udir.X();
+  double yf = nux4.Y()+length*udir.Y();
+  double zf = nux4.Z()+length*udir.Z();
+  if ( fGeomAnalyzer->GetGeometry()->FindNode(xf,yf,zf)->GetNumber()==1 ) {    
+    LOG("GTRJDriver", pWARN) << "** Final position could be outside the geometry.";
+    LOG("GTRJDriver", pWARN) << "** It can happen with events very close to boundaries.";
+    LOG("GTRJDriver", pWARN) << "E = " << nup4.E();
+    LOG("GTRJDriver", pWARN) << "Pos   = [ " << nux4.X() << " m, " << nux4.Y() << " m, " << nux4.Z() << " m]";
+    LOG("GTRJDriver", pWARN) << "Dir   = [ " << udir.X() << ", " << udir.Y() << ", " << udir.Z() << " ]";
+    LOG("GTRJDriver", pWARN) << "Final = [ " << xf << " m, " << yf << " m, " << zf << " m]";
+    return 0;
   }
 
   LOG("GTRJDriver", pNOTICE)
@@ -157,9 +179,9 @@ EventRecord * GTRJDriver::GenerateEvent(void)
      << "\n  |----o 4-position : " << utils::print::X4AsString(&fFluxDriver->Position());
 
   // Check if the neutrino interacts in the geometry
-  if ( !this->ComputeInteraction() ) {
+  if ( !this->ComputeInteraction( fFluxDriver->PdgCode(), nup4.E(), MatLengths ) ) {
     LOG("GTRJDriver", pNOTICE) << "** Neutrino didnt interact in the volume";
-    return 0;
+    return 2;
   }
 
   // Ask the GEVGDriver object to select and generate an interaction and
@@ -167,24 +189,18 @@ EventRecord * GTRJDriver::GenerateEvent(void)
   this->GenerateEventKinematics();
   if(!fCurEvt) {
     LOG("GTRJDriver", pWARN) << "** Couldn't generate kinematics for selected interaction";
+    LOG("GTRJDriver", pWARN) << "E = " << nup4.E();
+    LOG("GTRJDriver", pWARN) << "Pos   = [ " << nux4.X() << " m, " << nux4.Y() << " m, " << nux4.Z() << " m]";
+    LOG("GTRJDriver", pWARN) << "Dir   = [ " << udir.X() << ", " << udir.Y() << ", " << udir.Z() << " ]";
     return 0;
   }
 
-  return fCurEvt;
+  return 1;
 
 }
 //___________________________________________________________________________
-bool GTRJDriver::ComputeInteraction(void)
+bool GTRJDriver::ComputeInteraction(int nupdg, double Enu, std::vector< pair<double, const TGeoMaterial*> > MatLengths)
 {
-
-  const TLorentzVector & nup4  = fFluxDriver -> Momentum ();
-  const TLorentzVector & nux4  = fFluxDriver -> Position ();
-
-  std::vector< pair<double, const TGeoMaterial*> > MatLengths = fGeomAnalyzer->ComputeMatLengths(nux4,nup4);
-
-  // current flux neutrino code & 4-p
-  int    nupdg = fFluxDriver->PdgCode();
-  double Enu   = nup4.Energy();
 
   RandomGen * rnd = RandomGen::Instance();
   double R = rnd->RndEvg().Rndm();

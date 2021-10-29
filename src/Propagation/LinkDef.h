@@ -6,6 +6,7 @@
 
 #pragma link C++ namespace genie;
 
-#pragma link C++ class genie::Propagation;
+#pragma link C++ class genie::TauPropagation;
+#pragma link C++ class genie::HadronPropagation;
 
 #endif

@@ -5,7 +5,7 @@ MAKEFILE = Makefile
 include $(GENIE)/src/make/Make.include
 include $(NUPROPEARTH)/src/make/Make.include
 
-PACKAGE           = Driver
+PACKAGE           = Propagation
 DICTIONARY        = _ROOT_DICT_Propagation
 LIBNAME           = libGPropagation
 

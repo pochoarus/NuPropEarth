@@ -218,7 +218,7 @@ int main(int argc, char** argv)
       while ( (p=(GHepParticle *)piter.Next()) ) {
         
         //quit when it reachs the hadronic shower to avoid counting neutrinos from top
-        if ( abs(p->Pdg())==2000000001 ) break; 
+        //if ( abs(p->Pdg())==2000000001 ) break; 
 
         if ( p->E()<=spline_Erange.min || p->Status()!=kIStStableFinalState ) continue;
 

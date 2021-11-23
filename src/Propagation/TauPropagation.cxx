@@ -22,9 +22,9 @@ TauPropagation::TauPropagation(string ptype, int seed, ROOTGeomAnalyzer * gd) {
   taurnd = RandomGen::Instance();
 
   LOG("TauPropagation", pDEBUG) << "Initializing TAUOLA...";
-  Tauola::initialize();
   Tauola::setSeed(seed,0,0);
   Tauola::setRandomGenerator(TauRandomGenerator);
+  Tauola::initialize();
   mtau         = Tauola::getTauMass();        //use this mass to avoid energy conservation warning in tauola
   d_lifetime   = Tauola::tau_lifetime/(constants::kLightSpeed/(units::millimeter/units::nanosecond)); //lifetime in ns
   polarization = 1;                           //tau-(P=-1) & tau+(P=-1) however in tauola its is fliped

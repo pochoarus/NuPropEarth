@@ -14,6 +14,9 @@
 using namespace std;
 using namespace genie;
 
+
+const double fPREM_ref = 6371.0;
+
 struct XmlLayer{ 
   TString name; 
   double radius; 
@@ -90,6 +93,7 @@ int main (int argc, char** argv)
 
   }
 
+
   double fREarth_km = xmllayers.back().radius;
 
   LOG("BuildEarth", pDEBUG) << fREarth_km;
@@ -117,7 +121,7 @@ int main (int argc, char** argv)
     auxlayer.name        = xmllayers[iLayer].name;
     auxlayer.r1          = r1;
     auxlayer.r2          = r2;
-    auxlayer.rho         = xmllayers[iLayer].density[0] + xmllayers[iLayer].density[1]*rmean/fREarth_km + xmllayers[iLayer].density[2]*pow(rmean/fREarth_km,2) + xmllayers[iLayer].density[3]*pow(rmean/fREarth_km,3);
+    auxlayer.rho         = xmllayers[iLayer].density[0] + xmllayers[iLayer].density[1]*rmean/fPREM_ref + xmllayers[iLayer].density[2]*pow(rmean/fPREM_ref,2) + xmllayers[iLayer].density[3]*pow(rmean/fPREM_ref,3);
     auxlayer.elements    = xmllayers[iLayer].elements;
     
     layers.push_back(auxlayer);

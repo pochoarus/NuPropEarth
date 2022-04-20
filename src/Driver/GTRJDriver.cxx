@@ -44,7 +44,8 @@ GTRJDriver::GTRJDriver()
   fCurTgtPdg          = 0;
   fCurEvt             = 0;
   fCurdL              = 0.;
-
+  fCurWeight          = 0.;
+  
   // Force early initialization of singleton objects that are typically
   // would be initialized at their first use later on.
   // This is purely cosmetic and I do it to send the banner and some prolific
@@ -129,6 +130,8 @@ void GTRJDriver::Configure(double emin, double emax)
     } // targets
   } // neutrinos
 
+  fIsotopes = NaturalIsotopes::Instance();
+
   LOG("GTRJDriver", pNOTICE) << "Finished configuring GTRJDriver\n\n";
 
 }
@@ -142,12 +145,11 @@ int GTRJDriver::GenerateEvent(void)
   fCurTgtPdg = 0;
   fCurdL     = 0.;
 
-  // Generate a neutrino using the input GFluxI & get current pdgc/p4/x4
-  if(!fFluxDriver->GenerateNext()) {
-     LOG("GTRJDriver", pFATAL)
-         << "*** The flux driver couldn't generate a flux neutrino!!";
-     exit(1);
-  }
+  LOG("GTRJDriver", pNOTICE)
+     << "\n [-] Generated flux neutrino: "
+     << "\n  |----o PDG-code   : " << fFluxDriver->PdgCode()
+     << "\n  |----o 4-momentum : " << utils::print::P4AsString(&fFluxDriver->Momentum())
+     << "\n  |----o 4-position : " << utils::print::X4AsString(&fFluxDriver->Position());
 
   const TLorentzVector & nup4  = fFluxDriver -> Momentum ();
   const TLorentzVector & nux4  = fFluxDriver -> Position ();
@@ -155,9 +157,11 @@ int GTRJDriver::GenerateEvent(void)
 
   std::vector< pair<double, const TGeoMaterial*> > MatLengths = fGeomAnalyzer->ComputeMatLengths(nux4,nup4);
 
-  double length = 0;
-  for ( auto sitr : MatLengths ) length += sitr.first;
-  length -= 10; //safety factor of 10 m
+  double length = MatLengths[0].first; //we always add the first step (even if it is in vacum)
+  for (unsigned int i=1; i<MatLengths.size(); i++) {
+    if ( MatLengths[i].second->GetDensity()>0. ) length += MatLengths[i].first;
+  }
+  length -= 10.; //safety factor of 10 m
 
   double xf = nux4.X()+length*udir.X();
   double yf = nux4.Y()+length*udir.Y();
@@ -172,17 +176,171 @@ int GTRJDriver::GenerateEvent(void)
     return 0;
   }
 
+  // Check if the neutrino interacts in the geometry
+  if ( !this->ComputeInteraction( fFluxDriver->PdgCode(), nup4.E(), MatLengths ) ) {
+    LOG("GTRJDriver", pNOTICE) << "** Neutrino didnt interact in the volume";
+    return 2;
+  }
+
+  // Ask the GEVGDriver object to select and generate an interaction and
+  // its kinematics for the selected initial state & neutrino 4-momentum
+  this->GenerateEventKinematics();
+  if(!fCurEvt) {
+    LOG("GTRJDriver", pWARN) << "** Couldn't generate kinematics for selected interaction";
+    LOG("GTRJDriver", pWARN) << "E = " << nup4.E();
+    LOG("GTRJDriver", pWARN) << "Pos   = [ " << nux4.X() << " m, " << nux4.Y() << " m, " << nux4.Z() << " m]";
+    LOG("GTRJDriver", pWARN) << "Dir   = [ " << udir.X() << ", " << udir.Y() << ", " << udir.Z() << " ]";
+    return 0;
+  }
+
+  return 1;
+
+}
+//___________________________________________________________________________
+int GTRJDriver::GenerateEvent(bool force, double maxlength)
+{
+// attempt generating a neutrino interaction by firing a single flux neutrino
+//
+
+  if (maxlength==0) {
+    LOG("GTRJDriver", pWARN) << "MaxLength equal zero.";
+    return 0.;    
+  }
+
+  fCurEvt    = 0;
+  fCurTgtPdg = 0;
+  fCurdL     = 0.;
+
   LOG("GTRJDriver", pNOTICE)
      << "\n [-] Generated flux neutrino: "
      << "\n  |----o PDG-code   : " << fFluxDriver->PdgCode()
      << "\n  |----o 4-momentum : " << utils::print::P4AsString(&fFluxDriver->Momentum())
      << "\n  |----o 4-position : " << utils::print::X4AsString(&fFluxDriver->Position());
 
+  const TLorentzVector & nup4  = fFluxDriver -> Momentum ();
+  const TLorentzVector & nux4  = fFluxDriver -> Position ();
+  TVector3 udir = nup4.Vect().Unit();
+
+  vector< pair<double, const TGeoMaterial*> > MatLengths = fGeomAnalyzer->ComputeMatLengths(nux4,nup4);
+
+  double totlength = 0.;
+  double totnint   = 0.;
+  vector<pair<double,double>> vlayer;
+  for (unsigned int m=0; m<MatLengths.size(); m++) {
+    double length            = MatLengths[m].first;
+    const  TGeoMaterial* mat = MatLengths[m].second;
+    double rho               = mat->GetDensity() * (units::m3/units::cm3) ;
+
+    if(rho==0) {
+      if (m==0) {
+        LOG("GTRJDriver", pFATAL) << "First material must be in geometry!!!";
+        exit(1);
+      }
+      else {
+        LOG("GTRJDriver", pNOTICE) << "Skiping material: " << mat->GetName();
+        continue;
+      }
+    }
+
+    double xsec = 0;
+    LOG("GTRJDriver", pDEBUG) << mat->GetName() << " -> rho = " << rho << " gr/m3";
+    if (mat->IsMixture()) {
+      const TGeoMixture * mixt = dynamic_cast <const TGeoMixture*> (mat);
+      for (int i = 0; i < mixt->GetNelements(); i++) {
+        int mpdg = fGeomAnalyzer->GetTargetPdgCode(mixt, i);
+        double Frac = mixt->GetWmixt()[i]; // relative proportion by mass
+        xsec += Frac*this->EvalXsec(mpdg,fFluxDriver->PdgCode(),nup4.E());
+        LOG("GTRJDriver", pDEBUG) << "  tgt: " << mpdg << ", frac =  " << Frac;
+      }
+    }
+    else {
+      int mpdg = fGeomAnalyzer->GetTargetPdgCode(mat);
+      LOG("GTRJDriver", pDEBUG) << "  tgt: " << mpdg;
+      xsec = this->EvalXsec(mpdg,fFluxDriver->PdgCode(),nup4.E());
+    }
+    LOG("GTRJDriver", pDEBUG) << "  length: " << length << " m";
+    LOG("GTRJDriver", pDEBUG) << "  xsec: " << xsec << " m2/gr";
+    double nint = rho * xsec * length;
+  
+    if ( maxlength>totlength+length ) {
+      vlayer.push_back(std::make_pair(nint,length));
+      totlength += length;
+      totnint   += nint;
+    }
+    else {
+      double frac = (maxlength-totlength)/length;
+      vlayer.push_back(std::make_pair(frac*nint,frac*length));
+      totnint   += frac*nint;
+      totlength += frac*length;
+      break;
+    }
+
+
+  }
+  totlength -= 10.; //safety factor of 10 m
+
+  double xf = nux4.X()+totlength*udir.X();
+  double yf = nux4.Y()+totlength*udir.Y();
+  double zf = nux4.Z()+totlength*udir.Z();
+  if ( fGeomAnalyzer->GetGeometry()->FindNode(xf,yf,zf)->GetNumber()==1 ) {    
+    LOG("GTRJDriver", pWARN) << "** Final position could be outside the geometry.";
+    LOG("GTRJDriver", pWARN) << "** It can happen with events very close to boundaries.";
+    LOG("GTRJDriver", pWARN) << "E = " << nup4.E();
+    LOG("GTRJDriver", pWARN) << "Pos   = [ " << nux4.X() << " m, " << nux4.Y() << " m, " << nux4.Z() << " m]";
+    LOG("GTRJDriver", pWARN) << "Dir   = [ " << udir.X() << ", " << udir.Y() << ", " << udir.Z() << " ]";
+    LOG("GTRJDriver", pWARN) << "Final = [ " << xf << " m, " << yf << " m, " << zf << " m]";
+    return 0;
+  }
+
+  RandomGen * rnd = RandomGen::Instance();
+  double R = rnd->RndEvg().Rndm();
+  LOG("GTRJDriver", pDEBUG) << "Rndm [0,1] = " << R;
+
   // Check if the neutrino interacts in the geometry
-  if ( !this->ComputeInteraction( fFluxDriver->PdgCode(), nup4.E(), MatLengths ) ) {
+  double N = 0.;
+  if (force && totnint<10) {
+    LOG("GTRJDriver", pNOTICE) << "Force interaction: " << totnint;
+    N          = totnint*R;
+    fCurWeight = totnint*TMath::Exp(-N);
+  }
+  else {
+    LOG("GTRJDriver", pNOTICE) << "Do not Force interaction: " << totnint;
+    N          = -TMath::Log(R);
+    fCurWeight = 1.;
+  }
+
+  int layer = this->ComputeInteraction( vlayer, N );
+  if ( layer<0 ) {
     LOG("GTRJDriver", pNOTICE) << "** Neutrino didnt interact in the volume";
     return 2;
+  }        
+
+  LOG("GTRJDriver", pNOTICE) << "Layer = " << layer;
+  LOG("GTRJDriver", pNOTICE) << "Distance to origin = " << fCurdL << " m";
+  LOG("GTRJDriver", pNOTICE) << "Weight = " << fCurWeight;
+  
+  const TGeoMaterial* mat = MatLengths[layer].second;
+  if (mat->IsMixture()) {
+    double RFrac = rnd->RndEvg().Rndm();
+    LOG("GTRJDriver", pDEBUG) << "RFrac: " << RFrac;
+    double FracCum = 0.;
+    const TGeoMixture * mixt = dynamic_cast <const TGeoMixture*> (mat);
+    for (int i = 0; i < mixt->GetNelements(); i++) {
+      FracCum += mixt->GetWmixt()[i]; // relative proportion by mass
+      if (RFrac<FracCum) {
+        fCurTgtPdg = fGeomAnalyzer->GetTargetPdgCode(mixt, i);
+        break;
+      }
+    }
   }
+  else fCurTgtPdg = fGeomAnalyzer->GetTargetPdgCode(mat);
+
+  if(fCurTgtPdg==0) {
+    LOG("GTRJDriver", pERROR) << "** Rejecting current flux neutrino (failed to select tgt!)";
+    return false;
+  }
+
+  LOG("GTRJDriver", pNOTICE) << "Interaction happening in material = " << fCurTgtPdg;
 
   // Ask the GEVGDriver object to select and generate an interaction and
   // its kinematics for the selected initial state & neutrino 4-momentum
@@ -209,7 +367,7 @@ bool GTRJDriver::ComputeInteraction(int nupdg, double Enu, std::vector< pair<dou
   LOG("GTRJDriver", pDEBUG) << "N = " << N;
 
   fCurdL = 0.;
-  double NIntCum=0;
+  double NIntCum=0.;
   
   for ( auto sitr : MatLengths ) {
 
@@ -218,33 +376,36 @@ bool GTRJDriver::ComputeInteraction(int nupdg, double Enu, std::vector< pair<dou
     double rho               = mat->GetDensity() * (units::m3/units::cm3) ;
 
     LOG("GTRJDriver", pDEBUG) << mat->GetName() << " -> rho = " << rho << " gr/m3";
+    LOG("GTRJDriver", pDEBUG) << "  length: " << length << " m";
 
-    double xsec = 0;
-    if (mat->IsMixture()) {
-      const TGeoMixture * mixt = dynamic_cast <const TGeoMixture*> (mat);
-      for (int i = 0; i < mixt->GetNelements(); i++) {
-        int mpdg = fGeomAnalyzer->GetTargetPdgCode(mixt, i);
-        double Frac = mixt->GetWmixt()[i]; // relative proportion by mass
-        xsec += Frac*this->EvalXsec(mpdg,nupdg,Enu);
-        LOG("GTRJDriver", pDEBUG) << "tgt: " << mpdg << ", frac =  " << Frac;
+    double NInt  = 0.;
+    if ( rho>0. ) {
+      double xsec = 0.;
+      if (mat->IsMixture()) {
+        const TGeoMixture * mixt = dynamic_cast <const TGeoMixture*> (mat);
+        for (int i = 0; i < mixt->GetNelements(); i++) {
+          int mpdg = fGeomAnalyzer->GetTargetPdgCode(mixt, i);
+          double Frac = mixt->GetWmixt()[i]; // relative proportion by mass
+          xsec += Frac*this->EvalXsec(mpdg,nupdg,Enu);
+          LOG("GTRJDriver", pDEBUG) << "  tgt: " << mpdg << ", frac =  " << Frac;
+        }
       }
+      else {
+        int mpdg = fGeomAnalyzer->GetTargetPdgCode(mat);
+        LOG("GTRJDriver", pDEBUG) << "  tgt: " << mpdg;
+        xsec = this->EvalXsec(mpdg,nupdg,Enu);
+      }
+
+      LOG("GTRJDriver", pDEBUG) << "  xsec: " << xsec << " m2/gr";
+
+      NInt  = rho * xsec * length; // number of interactions in the path
     }
-    else {
-      int mpdg = fGeomAnalyzer->GetTargetPdgCode(mat);
-      LOG("GTRJDriver", pDEBUG) << "tgt: " << mpdg;
-      xsec = this->EvalXsec(mpdg,nupdg,Enu);
-    }
 
-    LOG("GTRJDriver", pDEBUG) << "length: " << length << " m";
-    LOG("GTRJDriver", pDEBUG) << "xsec: " << xsec/units::m2 << " m2";
-
-    double NInt  = rho * kNA * xsec/units::m2 * length; // number of interactions in the path
-
-    LOG("GTRJDriver", pDEBUG) << "NInt: " << NInt;
+    LOG("GTRJDriver", pDEBUG) << "  NInt: " << NInt;
 
     NIntCum += NInt;
 
-    LOG("GTRJDriver", pDEBUG) << "NIntCum: " << NIntCum;
+    LOG("GTRJDriver", pDEBUG) << "  NIntCum: " << NIntCum;
 
     if (N>NIntCum) fCurdL += length; //no interaction in this layer -> add length
     else {
@@ -264,10 +425,10 @@ bool GTRJDriver::ComputeInteraction(int nupdg, double Enu, std::vector< pair<dou
       }
       else fCurTgtPdg = fGeomAnalyzer->GetTargetPdgCode(mat);
 
-			if(fCurTgtPdg==0) {
+      if(fCurTgtPdg==0) {
         LOG("GTRJDriver", pERROR) << "** Rejecting current flux neutrino (failed to select tgt!)";
         return false;
-  		}
+      }
 
       fCurdL += length * (N - (NIntCum-NInt)) / NInt;
 
@@ -276,11 +437,40 @@ bool GTRJDriver::ComputeInteraction(int nupdg, double Enu, std::vector< pair<dou
 
       return true;
 
-    }
+    }       
+    
 
   }
 
   return false;
+
+}
+//___________________________________________________________________________
+int GTRJDriver::ComputeInteraction(vector<pair<double,double>> vlayer, double N)
+{
+
+  LOG("GTRJDriver", pDEBUG) << "N = " << N;
+
+  fCurdL = 0.;
+  int layer = 0;
+  double NIntCum=0;  
+  for ( auto sitr : vlayer ) {
+    double nint   = sitr.first;
+    double length = sitr.second;
+    LOG("GTRJDriver", pDEBUG) << "NInt:    " << nint;
+    LOG("GTRJDriver", pDEBUG) << "NIntCum: " << NIntCum;
+    if (N>NIntCum+nint) {
+      fCurdL  += length; //no interaction in this layer -> add length
+      NIntCum += nint;
+      layer++;
+    }
+    else {
+      fCurdL += length * (N-NIntCum) / nint;
+      return layer;
+    }
+  }
+
+  return -1;
 
 }
 //___________________________________________________________________________
@@ -343,6 +533,8 @@ double GTRJDriver::EvalXsec(int mpdg, int nupdg, double Enu)
         exit(1);
     }
 
-    return totxsecspl->Evaluate( Enu )/pdg::IonPdgCodeToA(mpdg);
+    double atommass = fIsotopes->ElementDataPdg(pdg::IonPdgCodeToZ(mpdg),mpdg)->AtomicMass();
+    
+    return kNA/atommass * totxsecspl->Evaluate( Enu )/units::m2;
 
 }

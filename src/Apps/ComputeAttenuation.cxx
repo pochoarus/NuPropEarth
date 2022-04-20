@@ -43,33 +43,33 @@ using namespace genie::geometry;
 
 //functions
 void GetCommandLineArgs (int argc, char ** argv);
-void FillParticle       (GHepParticle * part, int &pdg, double &px, double &py,double &pz, double &e, double &vx, double &vy, double &vz, double &t) {
+void FillParticle       (GHepParticle * part, int &pdg, double &px, double &py,double &pz, double &e, double &vx, double &vy, double &vz) {
   pdg = part->Pdg();
   px  = part->Px(); py = part->Py(); pz = part->Pz(); e = part->E();
-  vx  = part->Vx(); vy = part->Vy(); vz = part->Vz(); t = part->Vt();
+  vx  = part->Vx(); vy = part->Vy(); vz = part->Vz();
 }
 
-
 // User-specified options:
-string          gOptOutName = "./test.root";               
-string          gOptGeometry = "";               
-int             gOptRanSeed = 0;               
+string          gOptOutName     = "./test.root";               
+string          gOptGeometry    = "";               
+double          gOptGeoLimit    = 0.; //Sphere where all interaction must be contained (usually the maximum radius of geometry)
+int             gOptRanSeed     = 0;               
 string          gOptInpXSecFile = "";           
-int             gOptNev = 0;              
-int             gOptPdg = -1; //all flavors                   
-double          gOptEmin = 1e2;
-double          gOptEmax = 1e10;
-double          gOptCthmin = -1.;
-double          gOptCthmax =  1.;
-double          gOptAlpha = 1; //flat spectrum in log10e
-double          gOptDetPos[3] = { 0., 0., 0. }; //Detector position at center of the volume
-double          gOptRadius = 0.; //Detector Radius (radius of a cylindrical shape) originally a point
-double          gOptHeight = 0.; //Detector height (height of the cylinder centerd at gOptDetPos[2]) originally a point
-string          gOptTauProp = ""; //"","NOELOSS","TAUSIC-ALLM","TAUSIC-BS","PROPOSAL"
-bool            gOptHadronProp = true;
+int             gOptNev         = 0;              
+int             gOptPdg         = -1; //all flavors                   
+double          gOptEmin        = 1e2;
+double          gOptEmax        = 1e10;
+double          gOptCthmin      = -1.;
+double          gOptCthmax      =  1.;
+double          gOptAlpha       = 1; //flat spectrum in log10e
+double          gOptDetPos[3]   = { 0., 0., 0. }; //Detector position at center of the volume
+double          gOptDetRadius   = 0.; //Detector Radius (radius of a cylindrical shape) originally a point
+double          gOptDetHeight   = 0.; //Detector height (height of the cylinder centerd at gOptDetPos[2]) originally a point
+double          gOptOffset      = 0.; //Move the initial positon of neutrino this lenght
+string          gOptTauProp     = ""; //Path to proposal tables
+bool            gOptHadronProp  = true;
 
 const int NMAXTRIALS = 10;
-const int NMAXINT = 100;
 const Range1D_t spline_Erange = { 1e2, 1e12 }; //energy range limit based on HEDIS splines 
 
 //**************************************************************************
@@ -97,16 +97,14 @@ int main(int argc, char** argv)
   LOG("ComputeAttenuation", pNOTICE) << topvol->GetName();
 
   LOG("ComputeAttenuation", pDEBUG) << "Initializing Tau Propagation...";
-  TauPropagation * tauprop = new TauPropagation(gOptTauProp,gOptRanSeed,rgeom);
+  TauPropagation * tauprop = new TauPropagation(gOptTauProp,gOptRanSeed,rgeom,{"MatVacuum"}); //skip vacum from propsal configuration
 
   LOG("ComputeAttenuation", pDEBUG) << "Initializing Hadron Propagation...";
   HadronPropagation * hadronprop = new HadronPropagation(rgeom);
   TDatabasePDG * PdgDB  = TDatabasePDG::Instance();
 
-
-
   LOG("ComputeAttenuation", pDEBUG) << "Creating GFluxI...";
-  IncomingFlux * flx_driver = new IncomingFlux(gOptPdg, gOptAlpha, gOptCthmin, gOptCthmax, gOptEmin, gOptEmax, gOptDetPos, gOptRadius, gOptHeight);
+  IncomingFlux * flx_driver = new IncomingFlux(gOptPdg, gOptAlpha, gOptCthmin, gOptCthmax, gOptEmin, gOptEmax, gOptDetPos, gOptDetRadius, gOptDetHeight, gOptOffset, false);
 
   RunOpt::Instance()->BuildTune();
 
@@ -131,32 +129,42 @@ int main(int argc, char** argv)
   // create file so tree is saved inside
   TFile * outfile = new TFile(gOptOutName.c_str(),"RECREATE");
   
-  int In_Pdg,Out_Pdg;
-  double In_X4[4],Out_X4[4];
-  double In_P4[4],Out_P4[4];
-  int NInt;
-  int SctID[NMAXINT];
-  int IntID[NMAXINT];
-  int Tgt[NMAXINT];
-  int Pdg[NMAXINT];
+  int    NInt;
+  int    In_Pdg;
+  double In_X,In_Y,In_Z;
+  double In_PX,In_PY,In_PZ,In_E;
+  int    Out_Pdg;
+  double Out_X,Out_Y,Out_Z;
+  double Out_PX,Out_PY,Out_PZ,Out_E;
 
   TTree *influx = new TTree("InFlux","InFlux");
-  influx->Branch("In_Pdg", &In_Pdg, "In_Pdg/I"   );       
-  influx->Branch("In_X4",  In_X4,   "In_X4[4]/D" );       
-  influx->Branch("In_P4",  In_P4,   "In_P4[4]/D" );       
+  influx->Branch("In_Pdg", &In_Pdg, "In_Pdg/I" );       
+  influx->Branch("In_X",   &In_X,    "In_X/D"  );       
+  influx->Branch("In_Y",   &In_Y,    "In_Y/D"  );       
+  influx->Branch("In_Z",   &In_Z,    "In_Z/D"  );       
+  influx->Branch("In_PX",  &In_PX,   "In_PX/D" );       
+  influx->Branch("In_PY",  &In_PY,   "In_PY/D" );       
+  influx->Branch("In_PZ",  &In_PZ,   "In_PZ/D" );       
+  influx->Branch("In_E",   &In_E,    "In_E/D"  );       
 
   TTree *outflux = new TTree("OutFlux","OutFlux");
-  outflux->Branch("In_Pdg",  &In_Pdg,  "In_Pdg/I"      );       
-  outflux->Branch("In_X4",   In_X4,    "In_X4[4]/D"    );       
-  outflux->Branch("In_P4",   In_P4,    "In_P4[4]/D"    );       
-  outflux->Branch("Out_Pdg", &Out_Pdg, "Out_Pdg/I"     );       
-  outflux->Branch("Out_X4",  Out_X4,   "Out_X4[4]/D"   );       
-  outflux->Branch("Out_P4",  Out_P4,   "Out_P4[4]/D"   );       
-  outflux->Branch("NInt",    &NInt,    "NInt/I"        );       
-  outflux->Branch("SctID",   SctID,    "SctID[NInt]/I" );       
-  outflux->Branch("IntID",   IntID,    "IntID[NInt]/I" );       
-  outflux->Branch("Tgt",     Tgt,      "Tgt[NInt]/I"   );        
-  outflux->Branch("Pdg",     Pdg,      "Pdg[NInt]/I"   );       
+  outflux->Branch("NInt",    &NInt,    "NInt/I"    );       
+  outflux->Branch("In_Pdg",  &In_Pdg,  "In_Pdg/I"  );       
+  outflux->Branch("In_X",    &In_X,    "In_X/D"    );       
+  outflux->Branch("In_Y",    &In_Y,    "In_Y/D"    );       
+  outflux->Branch("In_Z",    &In_Z,    "In_Z/D"    );       
+  outflux->Branch("In_PX",   &In_PX,   "In_PX/D"   );       
+  outflux->Branch("In_PY",   &In_PY,   "In_PY/D"   );       
+  outflux->Branch("In_PZ",   &In_PZ,   "In_PZ/D"   );       
+  outflux->Branch("In_E",    &In_E,    "In_E/D"    );       
+  outflux->Branch("Out_Pdg", &Out_Pdg, "Out_Pdg/I" );       
+  outflux->Branch("Out_X",   &Out_X,   "Out_X/D"   );       
+  outflux->Branch("Out_Y",   &Out_Y,   "Out_Y/D"   );       
+  outflux->Branch("Out_Z",   &Out_Z,   "Out_Z/D"   );       
+  outflux->Branch("Out_PX",  &Out_PX,  "Out_PX/D"  );       
+  outflux->Branch("Out_PY",  &Out_PY,  "Out_PY/D"  );       
+  outflux->Branch("Out_PZ",  &Out_PZ,  "Out_PZ/D"  );       
+  outflux->Branch("Out_E",   &Out_E,   "Out_E/D"   );       
 
   LOG("ComputeAttenuation", pDEBUG) << "Event loop...";
 
@@ -168,47 +176,38 @@ int main(int argc, char** argv)
   NInt = 0;
   while ( NNu<gOptNev ) {
 
-    if ( SecNu.size()>0 ) {
-      LOG("ComputeAttenuation", pDEBUG) << "@@SecNu      = "   << SecNu[0].Pdg() << " , E = " << SecNu[0].E() << " GeV";
-      LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << SecNu[0].Vx() << " m, " << SecNu[0].Vy() << " m, " << SecNu[0].Vz() << " m, " << SecNu[0].Vt() << " s ]";
-      LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << SecNu[0].Px()/SecNu[0].E() << " , " << SecNu[0].Py()/SecNu[0].E() << " , " << SecNu[0].Pz()/SecNu[0].E() << " ]";
+    if ( SecNu.size()==0 ) {
+      if ( NNu%100==0 ) LOG("ComputeAttenuation", pNOTICE) << "Event " << NNu << " out of " << gOptNev;
+      flx_driver->InitNeutrino();
+      FillParticle(flx_driver->GetNeutrino(),In_Pdg,In_PX,In_PY,In_PZ,In_E,In_X,In_Y,In_Z);
+    }
+    else {
+      LOG("ComputeAttenuation", pDEBUG) << "@@SecNu = "   << SecNu[0].Pdg() << " , E = " << SecNu[0].E() << " GeV";
       flx_driver->InitNeutrino(SecNu[0]);
       SecNu.erase(SecNu.begin()); //remove first entry because it is just process
     }
 
-    int eventid = trj_driver->GenerateEvent();
-
-    if ( NInt==0 ) {
-      if ( NNu%100==0 ) LOG("ComputeAttenuation", pNOTICE) << "Event " << NNu << " out of " << gOptNev;
-      FillParticle(flx_driver->GetNeutrino(),In_Pdg,In_P4[0],In_P4[1],In_P4[2],In_P4[3],In_X4[0],In_X4[1],In_X4[2],In_X4[3]);
-    }
-
+    TVector3 fdir = flx_driver->Momentum().Vect().Unit();
     LOG("ComputeAttenuation", pDEBUG) << "Shooting Neutrino: " << NNu << "( " << NInt << " ) ----->" ;
-    LOG("ComputeAttenuation", pDEBUG) << "@@Flux = " << flx_driver->GetNeutrino()->Pdg() << " , E =" << flx_driver->GetNeutrino()->E() << " GeV";
-    LOG("ComputeAttenuation", pDEBUG) << "Postion   = [ " << flx_driver->GetNeutrino()->Vx() << " m, " << flx_driver->GetNeutrino()->Vy() << " m, " << flx_driver->GetNeutrino()->Vz() << " m, " << flx_driver->GetNeutrino()->Vt() << " s ] ";
-    LOG("ComputeAttenuation", pDEBUG) << "Direction = [ " << flx_driver->GetNeutrino()->Px()/flx_driver->GetNeutrino()->E() << " , " << flx_driver->GetNeutrino()->Py()/flx_driver->GetNeutrino()->E() << " , " << flx_driver->GetNeutrino()->Pz()/flx_driver->GetNeutrino()->E() << " ]";
+    LOG("ComputeAttenuation", pDEBUG) << "@@Flux = " << flx_driver->PdgCode() << " , E =" << flx_driver->Momentum().E() << " GeV";
+    LOG("ComputeAttenuation", pDEBUG) << "Postion   = [ " << flx_driver->Position().X() << " m, " << flx_driver->Position().Y() << " m, " << flx_driver->Position().Z() << " m, " << flx_driver->Position().T() << " s ] ";
+    LOG("ComputeAttenuation", pDEBUG) << "Direction = [ " << fdir.X() << " , " << fdir.Y() << " , " << fdir.Z() << " ]";
+
+    int eventid = trj_driver->GenerateEvent();
 
     if ( eventid==1 ) {
 
       EventRecord * event = trj_driver->GetEvent();
 
-      SctID[NInt] = event->Summary()->ProcInfoPtr()->ScatteringTypeId();
-      IntID[NInt] = event->Summary()->ProcInfoPtr()->InteractionTypeId();
-      Tgt[NInt]   = ( event->TargetNucleus() ) ? event->TargetNucleus()->Pdg() : event->HitNucleon()->Pdg();
-      Pdg[NInt]   = event->Probe()->Pdg();
-
-      const TLorentzVector & X4  = *event->Vertex();
-      const TLorentzVector & P4  = *event->Probe()->P4();
-
+      const TLorentzVector & vtx  = *event->Vertex();
+      TVector3 nudir = event->Probe()->P4()->Vect().Unit();
+ 
       // print-out
       LOG("ComputeAttenuation", pDEBUG) << "Neutrino interaction!!!";
-      LOG("ComputeAttenuation", pDEBUG) << "@@Interact   = "   << SctID[NInt] << "   " << IntID[NInt];
-      LOG("ComputeAttenuation", pDEBUG) << "@@Target     = "   << Tgt[NInt];
-      LOG("ComputeAttenuation", pDEBUG) << "@@Probe      = "   << Pdg[NInt] << " , E =" << P4.E() << " GeV";
-      LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << X4.X() << " m, " << X4.Y() << " m, " << X4.Z() << " m, " << X4.T() << " s ]";
-      LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << P4.Px()/P4.E() << " , " << P4.Py()/P4.E() << " , " << P4.Pz()/P4.E() << " ]";
+      LOG("ComputeAttenuation", pDEBUG) << "  Position   = [ " << vtx.X() << " m, " << vtx.Y() << " m, " << vtx.Z() << " m, " << vtx.T() << " s ]";
+      LOG("ComputeAttenuation", pDEBUG) << "  Direction  = [ " << nudir.X() << " , " << nudir.Y() << " , " << nudir.Z() << " ]";
       LOG("ComputeAttenuation", pDEBUG) << *event;
-      assert(sqrt(X4.X()*X4.X()+X4.Y()*X4.Y()+X4.Z()*X4.Z())<6372e3);
+      assert(sqrt(vtx.X()*vtx.X()+vtx.Y()*vtx.Y()+vtx.Z()*vtx.Z())<gOptGeoLimit);
 
       NInt++;
 
@@ -222,7 +221,7 @@ int main(int argc, char** argv)
 
         if ( p->E()<=spline_Erange.min || p->Status()!=kIStStableFinalState ) continue;
 
-        p->SetPosition( X4.X()+p->Vx()*1e-15, X4.Y()+p->Vy()*1e-15, X4.Z()+p->Vz()*1e-15, X4.T()+p->Vt() ); //position -> passing from fm(genie) to m(geom)
+        p->SetPosition( vtx.X()+p->Vx()*1e-15, vtx.Y()+p->Vy()*1e-15, vtx.Z()+p->Vz()*1e-15, vtx.T()+p->Vt() ); //position -> passing from fm(genie) to m(geom)
 
         if ( pdg::IsNeutrino(TMath::Abs(p->Pdg())) ) {
           p->SetEnergy( TMath::Sqrt(p->Px()*p->Px()+p->Py()*p->Py()+p->Pz()*p->Pz()) ); //not using E to avoid problems with neutrinos from pythia not on shell
@@ -230,11 +229,11 @@ int main(int argc, char** argv)
         }
 
         else if ( pdg::IsTau(TMath::Abs(p->Pdg())) ) {
-          std::vector<GHepParticle> TauProd = tauprop->Propagate(p);
+          std::vector<GHepParticle> TauProd = tauprop->Propagate(p,spline_Erange.min);
           for ( auto & tpr : TauProd ) {
             if ( tpr.E()>spline_Erange.min ) {                
-              if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr); // X -> tau
-              else SecNu.push_back(tpr); // X -> tau -> nu
+              if      ( pdg::IsTau     (TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr); // X -> tau
+              else if ( pdg::IsNeutrino(TMath::Abs(tpr.Pdg())) ) SecNu.push_back(tpr);   // X -> tau -> nu
             }
           }
         }
@@ -249,11 +248,11 @@ int main(int argc, char** argv)
             for ( auto & cpr : CharmProd ) {
               if ( cpr.E()>spline_Erange.min ) {  
                 if ( pdg::IsTau(TMath::Abs(cpr.Pdg())) ) {
-                  std::vector<GHepParticle> TauProd = tauprop->Propagate(&cpr);
+                  std::vector<GHepParticle> TauProd = tauprop->Propagate(&cpr,spline_Erange.min);
                   for ( auto & tpr : TauProd ) {
                     if ( tpr.E()>spline_Erange.min ) {  
-                      if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr); // X -> charmed -> tau
-                      else SecNu.push_back(tpr); // X -> charmed -> tau -> nu
+                      if      ( pdg::IsTau     (TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr); // X -> charmed -> tau
+                      else if ( pdg::IsNeutrino(TMath::Abs(tpr.Pdg())) ) SecNu.push_back(tpr);   // X -> charmed -> tau -> nu
                     }
                   }
                 }
@@ -269,11 +268,11 @@ int main(int argc, char** argv)
             for ( auto & bpr : BottomProd ) {
               if ( bpr.E()>spline_Erange.min ) {  
                 if ( pdg::IsTau(TMath::Abs(bpr.Pdg())) ) {
-                  std::vector<GHepParticle> TauProd = tauprop->Propagate(&bpr);
+                  std::vector<GHepParticle> TauProd = tauprop->Propagate(&bpr,spline_Erange.min);
                   for ( auto & tpr : TauProd ) {
                     if ( tpr.E()>spline_Erange.min ) {  
-                      if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr); // X -> bottom -> tau
-                      else SecNu.push_back(tpr); // X -> bottom -> tau -> nu
+                      if      ( pdg::IsTau     (TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr); // X -> bottom -> tau
+                      else if ( pdg::IsNeutrino(TMath::Abs(tpr.Pdg())) ) SecNu.push_back(tpr);   // X -> bottom -> tau -> nu
                     }
                   }
                 }
@@ -286,11 +285,11 @@ int main(int argc, char** argv)
                     for ( auto & cpr : CharmProd ) {
                       if ( cpr.E()>spline_Erange.min ) {  
                         if ( pdg::IsTau(TMath::Abs(cpr.Pdg())) ) {
-                          std::vector<GHepParticle> TauProd = tauprop->Propagate(&cpr);
+                          std::vector<GHepParticle> TauProd = tauprop->Propagate(&cpr,spline_Erange.min);
                           for ( auto & tpr : TauProd ) {
                             if ( tpr.E()>spline_Erange.min ) {  
-                              if ( pdg::IsTau(TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr); // X -> bottom -> charm -> tau
-                              else SecNu.push_back(tpr); // X -> bottom -> charm -> tau -> nu
+                              if      ( pdg::IsTau     (TMath::Abs(tpr.Pdg())) ) OutPart.push_back(tpr); // X -> bottom -> charm -> tau
+                              else if ( pdg::IsNeutrino(TMath::Abs(tpr.Pdg())) ) SecNu.push_back(tpr);   // X -> bottom -> charm -> tau -> nu
                             }
                           }
                         }
@@ -337,7 +336,7 @@ int main(int argc, char** argv)
       LOG("ComputeAttenuation", pINFO) << "Summary: ";
       LOG("ComputeAttenuation", pINFO) << In_Pdg << " ----> ((( )))";
       for (unsigned int i=0; i<OutPart.size(); i++) {
-        FillParticle(&OutPart[i],Out_Pdg,Out_P4[0],Out_P4[1],Out_P4[2],Out_P4[3],Out_X4[0],Out_X4[1],Out_X4[2],Out_X4[3]);
+        FillParticle(&OutPart[i],Out_Pdg,Out_PX,Out_PY,Out_PZ,Out_E,Out_X,Out_Y,Out_Z);
         outflux->Fill();
         LOG("ComputeAttenuation", pINFO) << "         ((( ))) ----> " << Out_Pdg;
       }
@@ -361,13 +360,6 @@ int main(int argc, char** argv)
 
   return 0;
 }
-
-//**************************************************************************
-//**************************************************************************
-//THIS FUNCTION DECAY TAUS
-//**************************************************************************
-//**************************************************************************
-
 
 //**************************************************************************
 //**************************************************************************
@@ -397,6 +389,11 @@ void GetCommandLineArgs(int argc, char ** argv)
         i++;
         LOG("ComputeAttenuation", pDEBUG) << "Reading geometry";
         gOptGeometry = argv[i];
+      }          
+      if(opt.compare("--geometry-limit")==0){   
+        i++;
+        LOG("ComputeAttenuation", pDEBUG) << "Reading geometry limit";
+        gOptGeoLimit = atof(argv[i]);
       }          
       if(opt.compare("--seed")==0){   
         i++;
@@ -469,19 +466,24 @@ void GetCommandLineArgs(int argc, char ** argv)
           exit(1);
         }
       }       
-      if(opt.compare("--radius")==0){
+      if(opt.compare("--detector-radius")==0){
         i++; 
         LOG("ComputeAttenuation", pINFO) << "Reading detector radius";
-        gOptRadius = atof(argv[i]);  
+        gOptDetRadius = atof(argv[i]);  
       }
-      if(opt.compare("--height")==0){
+      if(opt.compare("--detector-height")==0){
         i++; 
         LOG("ComputeAttenuation", pINFO) << "Reading detector height";
-        gOptHeight = atof(argv[i]);  
+        gOptDetHeight = atof(argv[i]);  
+      }       
+      if(opt.compare("--offset")==0){
+        i++; 
+        LOG("ComputeAttenuation", pINFO) << "Reading offset";
+        gOptOffset = atof(argv[i]);  
       }       
       if(opt.compare("--tau-propagation")==0){ 
         i++; 
-        LOG("ComputeAttenuation", pINFO) << "Enable tau propagation";
+        LOG("ComputeAttenuation", pINFO) << "Reading tau propagation tables";
         gOptTauProp = argv[i];  
       }      
       if(opt.compare("--no-hadron-propagation")==0){ 
@@ -514,13 +516,23 @@ void GetCommandLineArgs(int argc, char ** argv)
     exit(1);    
   }
 
-  if ( gOptHeight<0 ) {
-    LOG("ComputeAttenuation", pFATAL) << "Wrong height: " << gOptHeight << "; exit";
+  if ( gOptGeoLimit<=0 ) {
+    LOG("ComputeAttenuation", pFATAL) << "Wrong geomtry limit: " << gOptGeoLimit << "; exit";
     exit(1);    
   }
 
-  if ( gOptRadius<0 ) {
-    LOG("ComputeAttenuation", pFATAL) << "Wrong radius: " << gOptRadius << "; exit";
+  if ( gOptDetHeight<0 ) {
+    LOG("ComputeAttenuation", pFATAL) << "Wrong height: " << gOptDetHeight << "; exit";
+    exit(1);    
+  }
+
+  if ( gOptDetRadius<0 ) {
+    LOG("ComputeAttenuation", pFATAL) << "Wrong radius: " << gOptDetRadius << "; exit";
+    exit(1);    
+  }
+
+  if ( gOptOffset<0 ) {
+    LOG("ComputeAttenuation", pFATAL) << "Wrong offset: " << gOptOffset << "; exit";
     exit(1);    
   }
 
@@ -536,9 +548,9 @@ void GetCommandLineArgs(int argc, char ** argv)
   }
   if (gOptCthmin==gOptCthmax) LOG("ComputeAttenuation", pNOTICE) << "Running in monoangular mode";
 
-  if (gOptTauProp!="" && gOptTauProp!="NOELOSS" && gOptTauProp!="TAUSIC-ALLM" && gOptTauProp!="TAUSIC-BS" && gOptTauProp!="PROPOSAL" ) {
+  if ( gSystem->AccessPathName(gOptTauProp.c_str()) ) {
     LOG("ComputeAttenuation", pFATAL) << "Wrong tau propagation: " << gOptTauProp << "; exit";
-    exit(1);    
+    exit(1);          
   }
 
 
@@ -548,6 +560,12 @@ void GetCommandLineArgs(int argc, char ** argv)
      << "\n @@ Random number seed: " << gOptRanSeed
      << "\n @@ Using cross-section file: " << gOptInpXSecFile
      << "\n @@ Using output file name: " << gOptOutName
+     << "\n @@ Geometry"
+     << "\n\t File          = " << gOptGeometry
+     << "\n\t DetPos        = " << gOptDetPos[0] << "," << gOptDetPos[1] << "," << gOptDetPos[2] << " m"
+     << "\n\t DetRadius     = " << gOptDetRadius << " m"
+     << "\n\t DetHeight     = " << gOptDetHeight << " m"
+     << "\n\t Offset        = " << gOptOffset << " m"
      << "\n @@ Exposure" 
      << "\n\t" << gOptNev
      << "\n @@ Kinematics" 
@@ -557,9 +575,7 @@ void GetCommandLineArgs(int argc, char ** argv)
      << "\n\t Emin         = " << gOptEmin << " GeV"
      << "\n\t Emax         = " << gOptEmax << " GeV"
      << "\n\t Alpha        = " << gOptAlpha
-     << "\n\t DetPos       = " << gOptDetPos[0] << "," << gOptDetPos[1] << "," << gOptDetPos[2] << " m"
-     << "\n\t Radius       = " << gOptRadius << " m"
-     << "\n\t Height       = " << gOptHeight << " m"
+     << "\n @@ Propagation" 
      << "\n\t TauProp      = " << gOptTauProp
      << "\n\t HadronProp   = " << gOptHadronProp
      << "\n\n";

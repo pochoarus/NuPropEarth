@@ -16,10 +16,6 @@ LIBRARIES := $(LIBRARIES) -L$(TAUOLA)/lib -lTauolaCxxInterface -lTauolaFortran -
 CPP_INCLUDES := $(CPP_INCLUDES) -I$(PROPOSAL)/include
 LIBRARIES := $(LIBRARIES) -L$(PROPOSAL)/lib64 -lPROPOSAL  
 
-# tausic
-CERNLIBS = `cernlib mathlib packlib kernlib phtools`
-LIBRARIES := $(LIBRARIES) -lgfortran $(TAUSIC)/tausic-sr-2004.f $(TAUSIC)/tausic-sw-2004.f $(CERNLIBS)   
-
 CXXFLAGS := $(CXXFLAGS) -std=c++1y
 
 ROOT_DICT_GEN_INCLUDES := $(CPP_INCLUDES) $(ROOT_DICT_GEN_INCLUDES)

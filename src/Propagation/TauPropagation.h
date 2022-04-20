@@ -1,69 +1,32 @@
 #ifndef _TAU_PROPAGATION_H_
 #define _TAU_PROPAGATION_H_
 
-#include "Framework/Conventions/Constants.h"
-#include "Framework/GHEP/GHepParticle.h"
-#include "Framework/Numerical/RandomGen.h"
-#include "Framework/Messenger/Messenger.h"
-#include "Framework/ParticleData/PDGUtils.h"
-#include "Framework/ParticleData/NaturalIsotopes.h"
-#include "Tools/Geometry/ROOTGeomAnalyzer.h"
-
-#include "PROPOSAL/PROPOSAL.h"
-
 #include "Tauola/Tauola.h"
 #include "Tauola/TauolaHEPEVTParticle.h"
 
-#include <TSystem.h>
+#include "LeptonPropagation.h"
 
 using namespace Tauolapp;
 
 using namespace genie;
-using namespace genie::geometry;
-
-struct Ionisation_Constants {
-  double I;              ///< ionization potential [eV]
-  double C;              ///< ionization formula constants
-  double a;
-  double m;
-  double X0;
-  double X1;
-  double d0;
-};
 
 namespace genie {
 
-  class TauPropagation {
+  class TauPropagation : LeptonPropagation {
 
     public :
-      TauPropagation(string ptype, int seed, ROOTGeomAnalyzer * gd);
+      TauPropagation(string proposaltable, int seed, ROOTGeomAnalyzer * gd, vector<string> skiplist={});
      ~TauPropagation() {}
 
-      std::vector<GHepParticle> Propagate(GHepParticle * tau );
+      std::vector<GHepParticle> Propagate(GHepParticle * lepton, double minenergy);
+      void Propagate(GHepParticle * lepton, double length, double minenergy);
 
     private :
 
-      std::vector<GHepParticle> Decay(double pdg, double vx, double vy, double vz, double t, double px, double py, double pz, double e);
+      std::vector<GHepParticle> Decay(GHepParticle * tau);
 
-      void ComputeDepth(GHepParticle * p, double &avgrho, double &lengthi);
-      std::vector<PROPOSAL::Components::Component> GetComponent(map<int,double> composition);
-      void ConfigProposal();
-
-      ROOTGeomAnalyzer * geom_driver;
-
-      string tauproptype;
-
-      double mtau;
-      double d_lifetime;
+      double mass;
       double polarization;
-
-      //PROPOSAL
-      PROPOSAL::Propagator * ProposalTau;
-
-      //TAUSIC variables
-      int TAUIN;
-      int TAUMODEL;
-      int ITFLAG;
 
   };
 

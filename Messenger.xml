@@ -62,6 +62,7 @@
   <priority msgstream="Decay">                 WARN </priority>
   <priority msgstream="ResonanceDecay">        WARN </priority>
   <priority msgstream="Pythia6Decay">          WARN </priority>
+  <priority msgstream="Pythia6Had">            WARN </priority>
   <priority msgstream="DISSF">                 WARN </priority>
   <priority msgstream="DISXSec">               WARN </priority>
   <priority msgstream="DISCharmXSec">          WARN   </priority>
@@ -87,7 +88,7 @@
   <priority msgstream="Flux">                  WARN </priority>
   <priority msgstream="FMap">                  WARN   </priority>
   <priority msgstream="FragmRecUtils">         WARN </priority>
-  <priority msgstream="GEVGDriver">            ERROR </priority>
+  <priority msgstream="GEVGDriver">            WARN </priority>
   <priority msgstream="GMCJDriver">            WARN </priority>
   <priority msgstream="GEVGPool">              WARN   </priority>
   <priority msgstream="GMCJob">                WARN   </priority>
@@ -203,10 +204,16 @@
   <priority msgstream="HELeptonKinematics">    WARN </priority>
   <priority msgstream="GLRESPXSec">            WARN </priority>
   <priority msgstream="GLRESGenerator">        WARN </priority>
+  <priority msgstream="HENuElPXSec">           WARN </priority>
+  <priority msgstream="HENuElGenerator">       WARN </priority>
   <priority msgstream="PhotonRESPXSec">        WARN </priority>
   <priority msgstream="PhotonRESGenerator">    WARN </priority>
   <priority msgstream="PhotonCOHPXSec">        WARN </priority>
   <priority msgstream="PhotonCOHGenerator">    WARN </priority>
+  <priority msgstream="GravityXSec">           WARN </priority>
+  <priority msgstream="GravityPXSec">          WARN </priority>
+  <priority msgstream="GravityGenerator">      WARN </priority>
+  <priority msgstream="GravityKinematics">     WARN </priority>
 
   <priority msgstream="gevgen">              INFO </priority>
   <priority msgstream="gevgen_dm">           WARN </priority>
@@ -219,7 +226,7 @@
   <priority msgstream="gvldtest">            WARN </priority>
   <priority msgstream="grwght1scan">         WARN   </priority>
   <priority msgstream="gtune">               WARN   </priority>
-  <priority msgstream="gntpc">               WARN   </priority>
+  <priority msgstream="gntpc">               ERROR   </priority>
   <priority msgstream="gmkspl">              DEBUG  </priority>
   <priority msgstream="gmkspl_dm">           WARN   </priority>
   <priority msgstream="gspl2root">           DEBUG  </priority>
@@ -227,9 +234,13 @@
   <priority msgstream="gmkglrersf">          INFO   </priority>
 
   <!-- NuPropEarth -->
+  <priority msgstream="LeptonPropagator">    NOTICE  </priority>
+  <priority msgstream="VertexGenerator">     NOTICE  </priority>
   <priority msgstream="ComputeAttenuation">  NOTICE  </priority>
   <priority msgstream="IncomingFlux">        WARN  </priority>                                                          
+  <priority msgstream="LeptonPropagation">   WARN  </priority>                                                          
   <priority msgstream="TauPropagation">      WARN  </priority>                                                          
+  <priority msgstream="MuonPropagation">     WARN  </priority>                                                          
   <priority msgstream="HadronPropagation">   WARN  </priority>                                                          
   <priority msgstream="GTRJDriver">          WARN  </priority>
   <priority msgstream="BuildEarth">          WARN  </priority>

@@ -21,22 +21,32 @@ HadronPropagation::HadronPropagation(ROOTGeomAnalyzer * gd) {
 
 }
 
-void HadronPropagation::ComputeDepth(GHepParticle * p, double &avgrho, double &totlength) { //length(m) depth(g/cm2)
+double HadronPropagation::ComputeRho(GHepParticle * p) { //depth(g/cm3)
 
-  totlength = 0.;
-  avgrho    = 0.;
   std::vector< std::pair<double, const TGeoMaterial*> > MatLengths = geom_driver->ComputeMatLengths(*p->X4(),*p->P4());
-  for ( auto sitr : MatLengths ) {
-    double length  = sitr.first; 
-    double rho     = sitr.second->GetDensity();
-    totlength += length;
-    avgrho    += length*rho;
-  }
-  avgrho = avgrho/totlength;
-  LOG("HadronPropagation", pDEBUG) << "Sum ---> Avg. Rho = " << avgrho << " g/cm^3 ; Length = " << totlength << " m";
+
+  return MatLengths[0].second->GetDensity();
 
 }
 
+double HadronPropagation::ComputeDepth(GHepParticle * p) { //length(m)
+
+  std::vector< std::pair<double, const TGeoMaterial*> > MatLengths = geom_driver->ComputeMatLengths(*p->X4(),*p->P4());
+
+  if (MatLengths[0].second->GetDensity()==0) {
+    LOG("LeptonPropagation", pFATAL) << "Lepton can not start in vacum (neutrinos do not interact!)";
+    exit(1);
+  }
+
+  double totlength = 0.;
+  for ( auto sitr : MatLengths ) {
+    if (sitr.second->GetDensity()>0) totlength += sitr.first; //only propagate until no vacum region
+  }
+  LOG("LeptonPropagation", pDEBUG) << "Sum ---> Length = " << totlength << " m";
+
+  return totlength;
+
+}
 
 std::vector<GHepParticle> HadronPropagation::Propagate(GHepParticle * hadron, string pclass) { 
 
@@ -62,20 +72,21 @@ std::vector<GHepParticle> HadronPropagation::Propagate(GHepParticle * hadron, st
 
   int idec = 0; //decay flag (0=not decay // 1=decay // 2=destroyed)
 
-  double avgrho,depthi; //g/cm3, m
-  ComputeDepth(hadron,avgrho,depthi);
+  double depthi = ComputeDepth(hadron);
 
-  double depth0 = depthi;
+  double length = 0;
 
   while( depthi>1 ) {
+
+    double rho = ComputeRho(hadron);
 
     // length before it decays [m]
     double lengthdec = -TMath::Log(rnd->RndGen().Rndm()) * mom * lifetime / mass;
 
     // length before it interact [m]
-    double lengthint = -TMath::Log(rnd->RndEvg().Rndm()) * HadronInteraction(pclass,mass,e,avgrho);
+    double lengthint = -TMath::Log(rnd->RndEvg().Rndm()) * HadronInteraction(pclass,mass,e,rho);
 
-    LOG("HadronPropagation", pDEBUG) << e << "  " << HadronInteraction(pclass,mass,e,avgrho) << "  " << mom * lifetime / mass;
+    LOG("HadronPropagation", pDEBUG) << e << "  " << HadronInteraction(pclass,mass,e,rho) << "  " << mom * lifetime / mass;
 
     //particle to close to the surface
     if (lengthdec>depthi && lengthint>depthi) {
@@ -83,6 +94,7 @@ std::vector<GHepParticle> HadronPropagation::Propagate(GHepParticle * hadron, st
       vy += depthi*dy;
       vz += depthi*dz;
       t  += depthi/(constants::kLightSpeed/(units::meter/units::second));      
+      length += depthi;
       break;
     }
 
@@ -92,8 +104,11 @@ std::vector<GHepParticle> HadronPropagation::Propagate(GHepParticle * hadron, st
       vy += lengthdec*dy;
       vz += lengthdec*dz;
       t  += lengthdec/(constants::kLightSpeed/(units::meter/units::second));      
+      length += lengthdec;
       break;
     }
+
+    length += lengthint;
 
     double z = HadronInelasticity(pclass);
     LOG("HadronPropagation", pDEBUG) << "Interaction -> lenght =  " << lengthint << ", z = " << z;
@@ -112,12 +127,12 @@ std::vector<GHepParticle> HadronPropagation::Propagate(GHepParticle * hadron, st
     mom = TMath::Sqrt( e*e - mass*mass );
     hadron->SetMomentum(dx*mom, dy*mom, dz*mom, e);
     hadron->SetPosition(vx,vy,vz,t);
-    ComputeDepth(hadron,avgrho,depthi);
+    depthi = ComputeDepth(hadron);
 
   }
 
   LOG("HadronPropagation", pDEBUG) << "After decay: " << pdg << ", E = " << e << " GeV" << ", idec = " << idec;
-  LOG("HadronPropagation", pDEBUG) << "depth0 = " << depth0 << "  depthi = " << depthi << " -> " << depth0-depthi; 
+  LOG("HadronPropagation", pDEBUG) << "length = " << length; 
   LOG("HadronPropagation", pDEBUG) << "  Position   = [ " << vx << " m, " << vy << " m, " << vz << " m, " << t << " s ]";
   LOG("HadronPropagation", pDEBUG) << "  Direction  = [ " << dx << " , " << dy << " , " << dz << " ]";
 
@@ -156,7 +171,7 @@ std::vector<GHepParticle> HadronPropagation::Decay(double pdg, double kf, double
     double se  = particle->GetEnergy();
     
     bool fill = false;
-    if ( pdg::IsNeutrino(TMath::Abs(spdg)) || pdg::IsTau(TMath::Abs(spdg)) ) fill = true;
+    if ( pdg::IsNeutrino(TMath::Abs(spdg)) || pdg::IsTau(TMath::Abs(spdg)) || pdg::IsMuon(TMath::Abs(spdg)) ) fill = true;
     else {
       TParticlePDG * partinfo = PdgDB->GetParticle(spdg);
       string pclass = partinfo->ParticleClass();

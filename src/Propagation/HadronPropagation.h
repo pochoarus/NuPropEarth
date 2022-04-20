@@ -35,7 +35,8 @@ namespace genie {
       double HadronInteraction(string pclass, double mass, double E, double rho);
       double HadronInelasticity(string pclass);
 
-      void ComputeDepth(GHepParticle * p, double &avgrho, double &lengthi);
+      double ComputeDepth(GHepParticle * p);
+      double ComputeRho(GHepParticle * p);
 
       RandomGen * rnd;
 

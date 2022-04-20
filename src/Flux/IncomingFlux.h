@@ -25,12 +25,12 @@ namespace genie {
     class IncomingFlux: public GFluxI {
 
       public :
-        IncomingFlux(int pdg, double alpha, double cthmin, double cthmax, double emin, double emax, double detpos[3], double radius, double height);
+        IncomingFlux(int pdg, double alpha, double cthmin, double cthmax, double emin, double emax, double detpos[3], double radius, double height, double offset, bool towards);
         virtual ~IncomingFlux();
 
         // methods implementing the GENIE GFluxI interface
         virtual PDGCodeList &          FluxParticles (void);
-        virtual bool                   GenerateNext  (void);
+        virtual bool                   GenerateNext  (void) { return true;             }
         virtual double                 MaxEnergy     (void) { return fEmax;            }
         virtual int                    PdgCode       (void) { return fNeutrino->Pdg(); }
         virtual double                 Weight        (void) { return 1;                }  
@@ -42,13 +42,12 @@ namespace genie {
         virtual void                   GenerateWeighted (bool gen_weighted) {}
         
         // set neutrino to simulate a new interaction (PropMode)
-        void           InitNeutrino (GHepParticle Nu);
-        GHepParticle * GetNeutrino  (void) { return fNeutrino; }
+        void           InitNeutrino    ();
+        void           InitNeutrino    (GHepParticle Nu);
+        GHepParticle * GetNeutrino     (void) { return fNeutrino; }
+        double         GetWeight       (double e) { return fGlobalWeight*fAgen*TMath::Power(e,fSpectralIndex); }
 
       protected:
-
-        // protected methods
-        bool    GenerateNext_1try (void);
 
         // protected data members
         PDGCodeList      fPdg;
@@ -58,11 +57,14 @@ namespace genie {
         double           fEmin;          
         double           fEmax;          
         double           fDetPos[3];
-        double           fRadius;
-        double           fHeight;          
+        double           fDetRadius;
+        double           fDetHeight;          
+        double           fOffset;          
+        bool             fTowardsDet;
 
-        bool             fNewNeutrino;
         GHepParticle *   fNeutrino;      
+        double           fGlobalWeight;
+        double           fAgen;
       
         
     };

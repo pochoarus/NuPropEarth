@@ -150,7 +150,7 @@ int main (int argc, char** argv)
   MatVacuum->SetZ(0.);
   MatVacuum->SetDensity(0.);
   TGeoMedium * Vacuum = new TGeoMedium("Vacuum", 0, MatVacuum);
-  TGeoVolume *TopVolume = GeoManager->MakeTube("TopVolume",Vacuum,0.,layers.back().r2*1E3, 2*layers.back().r2*1.E3);
+  TGeoVolume *TopVolume = GeoManager->MakeSphere("TopVolume",Vacuum,0.,10.*layers.back().r2*1.E3);
   GeoManager->SetTopVolume(TopVolume);
 
   int counter = 0;  

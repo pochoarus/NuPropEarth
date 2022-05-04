@@ -121,7 +121,7 @@ int main(int argc, char** argv)
   vector<int>    SctID;
   vector<int>    IntID;
   vector<int>    Tgt;
-  vector<double> X,Y,Z;
+  vector<double> X,Y,Z,T;
   vector<int>    In_Pdg;
   vector<double> In_PX,In_PY,In_PZ,In_E;
   vector<vector<double>> Out_Pdg;
@@ -138,6 +138,7 @@ int main(int argc, char** argv)
   outflux->Branch("X",        &X       );
   outflux->Branch("Y",        &Y       );
   outflux->Branch("Z",        &Z       );
+  outflux->Branch("T",        &T       );
   outflux->Branch("In_Pdg",   &In_Pdg  );
   outflux->Branch("In_PX",    &In_PX   );
   outflux->Branch("In_PY",    &In_PY   );
@@ -207,6 +208,7 @@ int main(int argc, char** argv)
       X     .push_back(vtx.X());
       Y     .push_back(vtx.Y());
       Z     .push_back(vtx.Z());
+      T     .push_back(vtx.T());
 
       // print-out
       LOG("VertexGenerator", pDEBUG) << "Neutrino interaction!!!";
@@ -236,8 +238,7 @@ int main(int argc, char** argv)
             SecNu.push_back(*p); // X -> nu
           }
         }
-        else if ( pdg::IsTau (TMath::Abs(p->Pdg())) ) outfill = true;
-        else if ( pdg::IsMuon(TMath::Abs(p->Pdg())) ) outfill = true;
+        else if ( pdg::IsChargedLepton(TMath::Abs(p->Pdg())) ) outfill = true;
         else {
           TParticlePDG * partdb = PdgDB->GetParticle(p->Pdg());
           string pclass = partdb->ParticleClass();
@@ -278,6 +279,7 @@ int main(int argc, char** argv)
       X.clear();
       Y.clear();
       Z.clear();
+      T.clear();
       In_Pdg.clear();
       In_PX.clear(); In_PY.clear(); In_PZ.clear(); In_E.clear();
       Out_Pdg.clear();

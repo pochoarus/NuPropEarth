@@ -5,8 +5,8 @@ RandomGen * taurnd;
 
 double TauRandomGenerator() { return taurnd->RndGen().Rndm(); }
 
-TauPropagation::TauPropagation(string proposaltable, int seed, ROOTGeomAnalyzer * gd, vector<string> skiplist) :
-    LeptonPropagation(15, proposaltable, seed, gd, skiplist)
+TauPropagation::TauPropagation(string proposaltable, double ecut, double vcut, int seed, ROOTGeomAnalyzer * gd, vector<string> skiplist) :
+    LeptonPropagation(15, proposaltable, ecut, vcut, seed, gd, skiplist)
 {
 
   LOG("TauPropagation", pDEBUG) << "Initializing Random...";

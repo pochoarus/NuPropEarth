@@ -37,20 +37,23 @@ namespace genie {
       virtual std::vector<GHepParticle> Propagate(GHepParticle * lepton, double minenergy) = 0;
       virtual void Propagate(GHepParticle * lepton, double length, double minenergy) = 0;
 
+      std::vector<GHepParticle> StepShowers(GHepParticle * lepton, double length, double minenergy); 
+
     protected :
 
-      LeptonPropagation(int pdg, string proposaltable, int seed, ROOTGeomAnalyzer * gd, vector<string> skiplist);
+      LeptonPropagation(int pdg, string proposaltable, double ecut, double vcut, int seed, ROOTGeomAnalyzer * gd, vector<string> skiplist);
 
       double ComputeDepth(GHepParticle * p);
 
       void SetMass(double m) { mass = m; } 
 
       void Step(GHepParticle * lepton, double length, double minenergy); 
+      
 
     private :
 
       std::vector<PROPOSAL::Components::Component> GetComponent(map<int,double> composition);
-      void ConfigProposal(int pdg, string tauproptype, vector<string> skiplist);
+      void ConfigProposal(int pdg, string proposaltable, double ecut, double vcut, vector<string> skiplist);
 
       ROOTGeomAnalyzer * geom_driver;
 

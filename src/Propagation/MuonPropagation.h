@@ -7,10 +7,10 @@ using namespace genie;
 
 namespace genie {
 
-  class MuonPropagation : LeptonPropagation {
+  class MuonPropagation : public LeptonPropagation {
 
     public :
-      MuonPropagation(string proposaltable, int seed, ROOTGeomAnalyzer * gd, vector<string> skiplist={});
+      MuonPropagation(string proposaltable, double ecut, double vcut, int seed, ROOTGeomAnalyzer * gd, vector<string> skiplist={});
      ~MuonPropagation() {}
 
       std::vector<GHepParticle> Propagate(GHepParticle * lepton, double minenergy);

@@ -1,8 +1,8 @@
 
 #include "MuonPropagation.h"
 
-MuonPropagation::MuonPropagation(string proposaltable, int seed, ROOTGeomAnalyzer * gd, vector<string> skiplist) : 
-    LeptonPropagation(13, proposaltable, seed, gd, skiplist) 
+MuonPropagation::MuonPropagation(string proposaltable, double ecut, double vcut, int seed, ROOTGeomAnalyzer * gd, vector<string> skiplist) : 
+    LeptonPropagation(13, proposaltable, ecut, vcut, seed, gd, skiplist) 
 {
 
   SetMass(constants::kMuonMass);

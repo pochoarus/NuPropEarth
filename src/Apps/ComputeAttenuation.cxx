@@ -97,7 +97,7 @@ int main(int argc, char** argv)
   LOG("ComputeAttenuation", pNOTICE) << topvol->GetName();
 
   LOG("ComputeAttenuation", pDEBUG) << "Initializing Tau Propagation...";
-  TauPropagation * tauprop = new TauPropagation(gOptTauProp,gOptRanSeed,rgeom,{"MatVacuum"}); //skip vacum from propsal configuration
+  TauPropagation * tauprop = new TauPropagation(gOptTauProp,-1,0.001,gOptRanSeed,rgeom,{"MatVacuum"}); //skip vacum from propsal configuration
 
   LOG("ComputeAttenuation", pDEBUG) << "Initializing Hadron Propagation...";
   HadronPropagation * hadronprop = new HadronPropagation(rgeom);

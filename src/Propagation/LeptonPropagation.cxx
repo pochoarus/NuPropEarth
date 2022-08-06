@@ -1,12 +1,21 @@
 #include "LeptonPropagation.h"
 
-LeptonPropagation::LeptonPropagation(int pdg, string proposaltable, int seed, ROOTGeomAnalyzer * gd, vector<string> skiplist) {
+
+std::map<int, int> proposal_translation = {
+  {1000000002,11},
+  {1000000003,11},
+  {1000000004,11},
+  {1000000005,211},
+  {1000000008,-1},
+};
+
+LeptonPropagation::LeptonPropagation(int pdg, string proposaltable, double ecut, double vcut, int seed, ROOTGeomAnalyzer * gd, vector<string> skiplist) {
 
   geom_driver = gd;
 
   PROPOSAL::RandomGenerator::Get().SetSeed(seed);
 
-  ConfigProposal(pdg,proposaltable,skiplist);
+  ConfigProposal(pdg,proposaltable,ecut,vcut,skiplist);
 
 }
 
@@ -44,7 +53,7 @@ std::vector<PROPOSAL::Components::Component> LeptonPropagation::GetComponent(map
 }
 
 
-void LeptonPropagation::ConfigProposal(int pdg, string proposaltable, vector<string> skiplist ) {
+void LeptonPropagation::ConfigProposal(int pdg, string proposaltable, double ecut, double vcut, vector<string> skiplist ) {
 
   std::vector<shared_ptr<const PROPOSAL::Geometry>> vgeolayers;
   std::vector<shared_ptr<const PROPOSAL::Medium>> vmedlayers;
@@ -109,9 +118,14 @@ void LeptonPropagation::ConfigProposal(int pdg, string proposaltable, vector<str
   unique_ptr<PROPOSAL::Sector::Definition> def_global(new PROPOSAL::Sector::Definition());
 
   PROPOSAL::Sector::Definition sec_def=*def_global;
-  sec_def.cut_settings.SetEcut(-1);
-  sec_def.cut_settings.SetVcut(0.001);
   
+  LOG("LeptonPropagation", pWARN) << "Ecut: " << ecut << "  Vcut: " << vcut;
+  if (ecut>0) sec_def.cut_settings.SetEcut(ecut*1e3);
+  else        sec_def.cut_settings.SetEcut(-1);
+  sec_def.cut_settings.SetVcut(vcut);
+  // sec_def.do_continuous_randomization = false;    
+  sec_def.do_continuous_energy_loss_output = false;    
+
   //matching danton  
   // sec_def.scattering_model = PROPOSAL::ScatteringFactory::Moliere;
   // sec_def.utility_def.photo_def.shadow = PROPOSAL::PhotonuclearFactory::ShadowDuttaRenoSarcevicSeckel;
@@ -171,7 +185,7 @@ void LeptonPropagation::Step(GHepParticle * lepton, double length, double minene
   double vxi = lepton->Vx()*1e2; //from m(geom) to (proposal)
   double vyi = lepton->Vy()*1e2;
   double vzi = lepton->Vz()*1e2;
-  double ti  = lepton->Vt()*1e9; //from s(geom) to ns(proposal)
+  double ti  = lepton->Vt();
 
   double momi = lepton->P4()->P();
   double dxi  = lepton->Px()/momi;
@@ -240,7 +254,6 @@ void LeptonPropagation::Step(GHepParticle * lepton, double length, double minene
   vxf *= 1e-2; //from cm(proposal) to m(geom)
   vyf *= 1e-2;
   vzf *= 1e-2;
-  tf  *= 1e-9; //from ns(proposal) to s(geom)
 
   double momf = TMath::Sqrt( ef*ef - mass*mass );
 
@@ -250,5 +263,73 @@ void LeptonPropagation::Step(GHepParticle * lepton, double length, double minene
 
 }
 
+
+std::vector<GHepParticle> LeptonPropagation::StepShowers(GHepParticle * lepton, double length, double minenergy) //m and GeV
+{ 
+
+  int pdgi = lepton->Pdg();
+
+  double vxi = lepton->Vx()*1e2; //from m(geom) to (proposal)
+  double vyi = lepton->Vy()*1e2;
+  double vzi = lepton->Vz()*1e2;
+  double ti  = lepton->Vt();
+
+  double momi = lepton->P4()->P();
+  double dxi  = lepton->Px()/momi;
+  double dyi  = lepton->Py()/momi;
+  double dzi  = lepton->Pz()/momi;
+  double ei   = TMath::Sqrt( momi*momi + mass*mass );
+  
+  LOG("LeptonPropagation", pDEBUG) << "Before step: " << pdgi << ", E = " << ei << " GeV";
+  LOG("LeptonPropagation", pDEBUG) << "  Position   = [ " << vxi << " cm, " << vyi << " cm, " << vzi << " cm, " << ti << " s ]";
+  LOG("LeptonPropagation", pDEBUG) << "  Direction  = [ " << dxi << " , " << dyi << " , " << dzi << " ]";
+
+  PROPOSAL::Vector3D direction(dxi,dyi,dzi);
+  direction.CalculateSphericalCoordinates();
+
+  PROPOSAL::DynamicData particle(TMath::Abs(pdgi));
+
+  particle.SetEnergy(ei*1E3); // [MeV]
+  particle.SetPropagatedDistance(0);
+  particle.SetPosition(PROPOSAL::Vector3D(vxi,vyi,vzi));
+  particle.SetDirection(direction);
+  particle.SetTime(ti);
+
+  PROPOSAL::Secondaries sec = Proposal->Propagate(particle,length*1e2,minenergy*1e3); //cm and MeV
+
+  auto particles = sec.GetModifyableSecondaries();
+
+  int nparticles = particles.size();
+
+  std::vector<GHepParticle> showers;
+  for (int i=0; i<nparticles; i++) {
+    double se = (particles[i].GetParentParticleEnergy()-particles[i].GetEnergy())*1e-3;
+
+    if ( se>minenergy ) {
+
+      int spdg = (particles[i].GetType()>1000000000) ? proposal_translation[particles[i].GetType()] : particles[i].GetType();
+
+      if      ( pdg::IsNeutrino(TMath::Abs(spdg)) ) continue;
+      else if ( spdg==-1 ) continue;
+      else if ( spdg==0 ) {
+        LOG("LeptonPropagation", pFATAL) << "Wrong PDG!!!";
+        LOG("LeptonPropagation", pFATAL) << particles[i].GetType() << ", E = " << se << " GeV";
+        exit(1);
+      }
+      
+      double spx = particles[i].GetDirection().GetX()*se;
+      double spy = particles[i].GetDirection().GetY()*se;
+      double spz = particles[i].GetDirection().GetZ()*se;
+      double svx = particles[i].GetPosition().GetX()*1e-2;
+      double svy = particles[i].GetPosition().GetY()*1e-2;
+      double svz = particles[i].GetPosition().GetZ()*1e-2;
+      double svt = particles[i].GetTime();
+      showers.push_back(GHepParticle(spdg,kIStUndefined,-1*TMath::Abs(particles[i].GetType()),-1,-1,-1,spx,spy,spz,se,svx,svy,svz,svt));
+    }
+  }
+
+  return showers;
+
+}
 
 

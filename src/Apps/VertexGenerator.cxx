@@ -239,12 +239,12 @@ int main(int argc, char** argv)
           }
         }
         else if ( pdg::IsChargedLepton(TMath::Abs(p->Pdg())) ) outfill = true;
-        else {
-          TParticlePDG * partdb = PdgDB->GetParticle(p->Pdg());
-          string pclass = partdb->ParticleClass();
-          if      ( pclass=="CharmedMeson" || pclass=="CharmedBaryon" ) outfill = true;
-          else if ( pclass==     "B-Meson" || pclass==     "B-Baryon" ) outfill = true;
-        }
+        // else {
+        //   TParticlePDG * partdb = PdgDB->GetParticle(p->Pdg());
+        //   string pclass = partdb->ParticleClass();
+        //   if      ( pclass=="CharmedMeson" || pclass=="CharmedBaryon" ) outfill = true;
+        //   else if ( pclass==     "B-Meson" || pclass==     "B-Baryon" ) outfill = true;
+        // }
 
         if (outfill) {
           Aux_Pdg.push_back(p->Pdg());

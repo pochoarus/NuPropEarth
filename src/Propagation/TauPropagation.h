@@ -12,10 +12,10 @@ using namespace genie;
 
 namespace genie {
 
-  class TauPropagation : LeptonPropagation {
+  class TauPropagation : public LeptonPropagation {
 
     public :
-      TauPropagation(string proposaltable, int seed, ROOTGeomAnalyzer * gd, vector<string> skiplist={});
+      TauPropagation(string proposaltable, double ecut, double vcut, int seed, ROOTGeomAnalyzer * gd, vector<string> skiplist={});
      ~TauPropagation() {}
 
       std::vector<GHepParticle> Propagate(GHepParticle * lepton, double minenergy);

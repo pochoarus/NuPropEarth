@@ -18,68 +18,132 @@ Victor Valera < vvalera \at nbi.ku.dk >
 
 These are the main dependencies:
 
-- GENIE3 (w/ HEDIS)
-- TAUOLA++ (v1.1.8) [modify src/tauolaCInterfaces/TauolaParticle.cxx line 295 using double m=Tauola::getTauMass();]
-- TAUSIC
+- GENIE (3.2.0 or above)
+- TAUOLA++ (v1.1.8)
+- PROPOSAL (v6)
 
-Then GENIE3 (w/ HEDIS) requires several external packages:
+Then GENIE requires several external packages:
 
 - ROOT6
 - PYTHIA6
 - LHAPDF6
 
 
-## Install
+## Installation instructions
 
-1. Install all the external packages: PYTHIA6,TAUOLA,TAUSIC,LHAPDF6,ROOT6
-
-2. Download NuPropEarth module on your machine 
+Tested in CentOS Linux release 7.9.2009 (Core) with access to sft.cern.ch (CVFMS).
 
 ```
-git clone https://github.com/pochoarus/NuPropEarth.git
-cd NuPropEarth
-```
+source /cvmfs/sft.cern.ch/lcg/releases/gcc/7.3.0-cb1ee/x86_64-centos7/setup.sh
 
-3. Define the enviroment in which you will work in source.sh (for instance GENIE,PYHTIA6,LHAPDF6,etc.)
+export WORKDIR=/path/to/installation/directory/
+mkdir $WORKDIR
 
-4. Source the enviroment
-
-```
-source setup.sh
-```
-
-5. Install this version of [GENIE3 (w/ HEDIS)](https://github.com/pochoarus/GENIE-HEDIS/tree/nupropearth)
-
-```
-git clone -b nupropearth https://github.com/pochoarus/GENIE-HEDIS.git $GENIE
-cd $GENIE
-./configure --enable-lhapdf6 --enable-apfel --with-lhapdf6-inc=$LHAPDF/include --with-lhapdf6-lib=$LHAPDF/lib
+#install tauola
+cd $WORKDIR
+wget https://tauolapp.web.cern.ch/tauolapp/resources/TAUOLA.1.1.8/TAUOLA.1.1.8.tar.gz
+tar xf TAUOLA.1.1.8.tar.gz
+rm TAUOLA.1.1.8.tar.gz
+mv TAUOLA tauola
+cd tauola
+sed -i "s/double m=.*/double m=Tauola::getTauMass();/g" src/tauolaCInterfaces/TauolaParticle.cxx
+./configure --without-hepmc --without-hepmc3
 make
+
+#install proposal
+cd $WORKDIR
+git clone --recursive -b 6.1.6 https://github.com/tudo-astroparticlephysics/PROPOSAL proposal
+cd proposal/
+mkdir build install
+cd build
+export PATH=/cvmfs/sft.cern.ch/lcg/releases/CMake/3.8.2-ece19/x86_64-centos7-gcc7-opt/bin:$PATH
+export LD_LIBRARY_PATH=/cvmfs/sft.cern.ch/lcg/releases/CMake/3.8.2-ece19/x86_64-centos7-gcc7-opt/lib:$LD_LIBRARY_PATH
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-std=c++11 -DADD_PYTHON=OFF  -DCMAKE_INSTALL_PREFIX=../install
+cmake --build . --target install
+
+#install genie
+cd $WORKDIR
+git clone -b R-3_04_00 https://github.com/GENIE-MC/Generator.git genie
+cd genie/
+source /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.12.04-abd9a/x86_64-centos7-gcc7-opt/bin/thisroot.sh
+export GENIE=$PWD
+./configure --disable-lhapdf5 --enable-lhapdf6 --with-lhapdf6-inc=/cvmfs/sft.cern.ch/lcg/releases/MCGenerators/lhapdf/6.2.1-4b9c6/x86_64-centos7-gcc7-opt/include --with-lhapdf6-lib=/cvmfs/sft.cern.ch/lcg/releases/MCGenerators/lhapdf/6.2.1-4b9c6/x86_64-centos7-gcc7-opt/lib --with-pythia6-lib=/cvmfs/sft.cern.ch/lcg/releases/MCGenerators/pythia6/429.2-63d8b/x86_64-centos7-gcc7-opt/lib --with-libxml2-inc=/cvmfs/sft.cern.ch/lcg/releases/libxml2/2.9.7-830a9/x86_64-centos7-gcc7-opt/include/libxml2 --with-libxml2-lib=/cvmfs/sft.cern.ch/lcg/releases/libxml2/2.9.7-830a9/x86_64-centos7-gcc7-opt/lib --with-log4cpp-inc=/cvmfs/sft.cern.ch/lcg/releases/MCGenerators/log4cpp/2.8.3-aeffd/x86_64-centos7-gcc7-opt/include --with-log4cpp-lib=/cvmfs/sft.cern.ch/lcg/releases/MCGenerators/log4cpp/2.8.3-aeffd/x86_64-centos7-gcc7-opt/lib
+sed -i "s/-lPythia6/-lpythia6/g" src/make/Make.include
+export LD_LIBRARY_PATH=/cvmfs/sft.cern.ch/lcg/releases/MCGenerators/pythia6/429.2-63d8b/x86_64-centos7-gcc7-opt/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/cvmfs/sft.cern.ch/lcg/releases/tbb/2018_U1-d3621/x86_64-centos7-gcc7-opt/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/cvmfs/sft.cern.ch/lcg/releases/GSL/2.1-36ee5/x86_64-centos7-gcc7-opt/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/cvmfs/sft.cern.ch/lcg/releases/MCGenerators/log4cpp/2.8.3-aeffd/x86_64-centos7-gcc7-opt/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/cvmfs/sft.cern.ch/lcg/releases/libxml2/2.9.7-830a9/x86_64-centos7-gcc7-opt/lib:$LD_LIBRARY_PATH
+make -j16
+
+
+#install nupropearth
+cd $WORKDIR
+git clone https://github.com/pochoarus/NuPropEarth.git nupropearth
+cd nupropearth/
+export NUPROPEARTH=$PWD
+export PROPOSAL=${WORKDIR}/proposal/install
+export TAUOLA=${WORKDIR}/tauola
+make -j16
+
+
+# Creating enviroment script
+cat > ${WORKDIR}/setup.sh << EOL
+source /cvmfs/sft.cern.ch/lcg/releases/gcc/7.3.0-cb1ee/x86_64-centos7/setup.sh
+source /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.12.04-abd9a/x86_64-centos7-gcc7-opt/bin/thisroot.sh
+export LD_LIBRARY_PATH=/cvmfs/sft.cern.ch/lcg/releases/MCGenerators/pythia6/429.2-63d8b/x86_64-centos7-gcc7-opt/lib:\$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/cvmfs/sft.cern.ch/lcg/releases/MCGenerators/lhapdf/6.2.1-4b9c6/x86_64-centos7-gcc7-opt/lib:\$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/cvmfs/sft.cern.ch/lcg/releases/MCGenerators/log4cpp/2.8.3-aeffd/x86_64-centos7-gcc7-opt/lib:\$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/cvmfs/sft.cern.ch/lcg/releases/tbb/2018_U1-d3621/x86_64-centos7-gcc7-opt/lib:\$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/cvmfs/sft.cern.ch/lcg/releases/GSL/2.1-36ee5/x86_64-centos7-gcc7-opt/lib:\$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/cvmfs/sft.cern.ch/lcg/releases/libxml2/2.9.7-830a9/x86_64-centos7-gcc7-opt/lib:\$LD_LIBRARY_PATH
+export GENIE=$GENIE
+export LD_LIBRARY_PATH=\$GENIE/lib:\$LD_LIBRARY_PATH
+export PATH=\$GENIE/bin:\$PATH
+export LHAPATH=/cvmfs/sft.cern.ch/lcg/releases/MCGenerators/lhapdf/6.2.1-4b9c6/x86_64-centos7-gcc7-opt/share/LHAPDF/:/cvmfs/fermilab.opensciencegrid.org/products/genie/externals/pochoarus-genie_he_data/pdfs/:\$GENIE/data/evgen/pdfs/
+export HEDIS_SF_DATA_PATH=/cvmfs/fermilab.opensciencegrid.org/products/genie/externals/pochoarus-genie_he_data/hedis-sf
+export PHOTON_SF_DATA_PATH=/cvmfs/fermilab.opensciencegrid.org/products/genie/externals/pochoarus-genie_he_data/photon-sf
+export XSEC_SPLINES=/cvmfs/fermilab.opensciencegrid.org/products/genie/externals/pochoarus-genie_he_data/splines
+export TAUOLA=$TAUOLA
+export LD_LIBRARY_PATH=\$TAUOLA/lib:$LD_LIBRARY_PATH
+export PROPOSAL=$PROPOSAL
+export LD_LIBRARY_PATH=\$PROPOSAL/lib64:$LD_LIBRARY_PATH
+export NUPROPEARTH=$NUPROPEARTH
+export LD_LIBRARY_PATH=\$NUPROPEARTH/lib:\$LD_LIBRARY_PATH
+export PATH=\$NUPROPEARTH/bin:\$PATH
+export GXMLPATH=\$NUPROPEARTH
+EOL
 ```
 
-6. Install NuPropEarth in your machine
-
-```
-cd $NUPROPEARTH
-make
-```
 
 
 ## Example
 
-To compute the attenuation assuming Earth PREM model you just have to run
-
+Generate muon neutrino interactions in oxygen using a power law spectrum
 ```
-NUMBEROFEVENTS="1e3" #to have enough statistic use 1e6
-NUPDG="14" #14=numu, 12=nue, 16=nutau, -14=anumu, -12=anue, -16=anutau, 
-COSTHETA="0.1"
-TUNE="GHE19_00a_00_000" #GHE19_00a_00_000=BGR18(member=0), GHE19_00b_00_000=CSMS11(member=0)
-cd $NUPROPEARTH
-source setup.sh
-BuildEarth -xml $NUPROPEARTH/src/tools/DefaultPREM.xml -root ./geometry-earth.root
-ComputeAttenuation --output ./test.root --number-of-events $NUMBEROFEVENTS --probe $NU --costheta $COSTHETA --energy $ENERGY --detector-position 0.0,0.0,-6371e3 --geometry ./geometry-earth.root --seed 1 --tau-propagation TAUSIC --event-generator-list HEDIS --tune $TUNE --cross-sections ${GENIE}/genie_xsec/${TUNE}.xml
+source $WORKDIR/setup.sh
+
+#first wee create geometry file
+cat > ./oxygen_sphere.xml << EOL
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<earth_prem>
+  <param_set name="LayerA" radius="100" density="1.,0.,0.,0.">
+    <param element="1000080160">   1.0           </param>
+  </param_set>
+</earth_prem>
+EOL
+
+BuildEarth -xml ./oxygen_sphere.xml -root ./oxygen_sphere.root
+
+#generate events
+TUNE=GHE19_00a_00_000 #bgr model
+GEOLIMIT=100e3 #m
+VertexGenerator --seed 1 --output ./test.root --number-of-events 1e3 --probe 14 --alpha 1 --costheta -1 --energy 1e2,1e10 --offset 0 --detector-radius 1000 --detector-height 1000 --detector-position "0,0,0" --geometry-limit ${GEOLIMIT}e3 --geometry ./oxygen_sphere.root --event-generator-list CCHEDIS --tune $TUNE --cross-sections ${XSEC_SPLINES}/${TUNE}.xml
 ```
 
+Propagate neutrinos through Earth (PREM model)
+```
+```
 
 ## Citation
 

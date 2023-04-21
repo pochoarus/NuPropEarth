@@ -161,9 +161,9 @@ int main (int argc, char** argv)
       LOG("BuildEarth", pDEBUG) << elem.first << "  " << elem.second;
       LayerMix->AddElement( pdg::IonPdgCodeToA(elem.first), pdg::IonPdgCodeToZ(elem.first), elem.second );                  
     }
-    TGeoMedium * LayerMedium = new TGeoMedium( layer.name, counter+1, LayerMix );   
+    TGeoMedium * LayerMedium = new TGeoMedium( layer.name, counter+2, LayerMix );   
     TGeoVolume * Sphere = GeoManager->MakeSphere( layer.name, LayerMedium, layer.r1*1.E3, layer.r2*1.E3 ); 
-    TopVolume->AddNode( Sphere, counter+1, Trans );
+    TopVolume->AddNode( Sphere, counter+2, Trans );
     counter++;
   }
 

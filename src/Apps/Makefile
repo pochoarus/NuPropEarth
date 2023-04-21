@@ -8,7 +8,7 @@ include $(NUPROPEARTH)/src/make/Make.include
 
 BIN_PATH = $(NUPROPEARTH)/bin
 
-TGT = ComputeAttenuation VertexGenerator LeptonPropagator
+TGT = ComputeAttenuation VertexGenerator
 
 all: $(TGT)
 

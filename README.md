@@ -123,7 +123,7 @@ Generate muon neutrino interactions in oxygen using a power law spectrum
 ```
 source $WORKDIR/setup.sh
 
-#first wee create geometry file
+#first we create geometry file
 cat > ./oxygen_sphere.xml << EOL
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <earth_prem>
@@ -137,8 +137,7 @@ BuildEarth -xml ./oxygen_sphere.xml -root ./oxygen_sphere.root
 
 #generate events
 TUNE=GHE19_00a_00_000 #bgr model
-GEOLIMIT=100e3 #m
-VertexGenerator --seed 1 --output ./test.root --number-of-events 1e3 --probe 14 --alpha 1 --costheta -1 --energy 1e2,1e10 --offset 0 --detector-radius 1000 --detector-height 1000 --detector-position "0,0,0" --geometry-limit ${GEOLIMIT}e3 --geometry ./oxygen_sphere.root --event-generator-list CCHEDIS --tune $TUNE --cross-sections ${XSEC_SPLINES}/${TUNE}.xml
+VertexGenerator --seed 1 --output ./test.root --number-of-events 1e3 --probe 14 --alpha 1 --costheta -1 --energy 1e2,1e10 --offset 0 --detector-radius 1000 --detector-height 1000 --detector-position "0,0,0" --geometry-limit 100e3 --geometry ./oxygen_sphere.root --event-generator-list CCHEDIS --tune $TUNE --cross-sections ${XSEC_SPLINES}/${TUNE}.xml
 ```
 
 Propagate neutrinos through Earth (PREM model)
